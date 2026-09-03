@@ -20,6 +20,12 @@ const BANKS = ['Banco XP', 'BTG Pactual', 'Sicredi', 'CEF', 'Santander', 'Azimut
 const OTHER_BANK = 'Outro';
 const HISTORY_KEEP = 200; // poda o histórico de uploads acima disso
 
+// Relatório especial "Analise Aplicações" — não é lançamento linha a linha,
+// é uma fotografia do saldo de cada fundo. Some ao seletor de bancos do
+// assistente, mas segue um fluxo próprio (ver ISSO no wizard mais abaixo).
+const APPLICATIONS_SOURCE = 'Análise Aplicações';
+const APPLICATIONS_STALE_DAYS = 60; // acima disso, o fundo é marcado como "desatualizado"
+
 /* ==== UTILITIES ==== */
 function pad2(n){ return String(n).padStart(2,'0'); }
 function todayISO(){
@@ -205,7 +211,42 @@ function generateExampleData(){
   });
   history.sort((a,b)=> a.at < b.at ? 1 : -1);
 
-  return { accounts, transactions: rows, sources, history };
+  const applications = generateExampleApplications(today, rnd);
+
+  return { accounts, transactions: rows, sources, history, applications };
+}
+
+function generateExampleApplications(today, rnd){
+  const defs = [
+    { banco:'BTG Pactual', fundo:'BTG Pactual DI FIC FI', contaCod:'8841-2', saldo: 620000, indexador:'CDI', vinculo:'Livre', garantia:'Não', cotizacao:'D+1', daysAgo:2 },
+    { banco:'Azimut', fundo:'Azimut Absoluto FIC FIM', contaCod:'1075-9', saldo: 185300, indexador:'CDI +', vinculo:'Livre', garantia:'Não', cotizacao:'D+30', daysAgo:5 },
+    { banco:'Banco XP', fundo:'XP Investor FIC FI RF', contaCod:'55210-4', saldo: 96500, indexador:'CDI', vinculo:'Livre', garantia:'Não', cotizacao:'D+0', daysAgo:1 },
+    { banco:'Sicredi', fundo:'Sicredi FIC FI RF Simples', contaCod:'30982-1', saldo: 41200, indexador:'CDI', vinculo:'Livre', garantia:'Não', cotizacao:'D+1', daysAgo:3 },
+    { banco:'Santander', fundo:'Santander FIC FI Referenciado DI', contaCod:'71440-8', saldo: 28900, indexador:'CDI', vinculo:'Livre', garantia:'Não', cotizacao:'D+1', daysAgo:8 },
+    { banco:'CEF', fundo:'Caixa FIC FI RF Curto Prazo', contaCod:'19023-5', saldo: 15600, indexador:'CDI', vinculo:'Vinculado — garantia contratual', garantia:'Sim', cotizacao:'D+2', daysAgo:96 },
+  ];
+  let asOfDate = today;
+  const funds = defs.map((d,i)=>{
+    const competencia = addDaysISO(today, -d.daysAgo);
+    if(competencia > asOfDate) asOfDate = competencia;
+    const rendimentos = Math.round(d.saldo * (0.008 + rnd()*0.006) * 100)/100;
+    const saldoInicial = Math.round((d.saldo - rendimentos) * 100)/100;
+    return {
+      id: 'ex_fund_'+i, banco: d.banco, fundo: d.fundo, contaCod: d.contaCod,
+      saldoInicial, aplicacoes: 0, rendimentos, imposto: 0, resgate: 0,
+      saldoFinal: d.saldo, rendimentosPct: Math.round((rendimentos/saldoInicial)*10000)/100,
+      competencia, cotizacaoResgate: d.cotizacao, garantia: d.garantia, vinculo: d.vinculo, indexador: d.indexador,
+      stale: false, staleDays: 0,
+    };
+  });
+  funds.forEach(f=>{ f.staleDays = daysBetweenISO(f.competencia, asOfDate); f.stale = f.staleDays > APPLICATIONS_STALE_DAYS; });
+  funds.sort((a,b)=> b.saldoFinal - a.saldoFinal);
+  const totalBalance = funds.reduce((s,f)=>s+f.saldoFinal,0);
+  const byBankMap = new Map();
+  funds.forEach(f=> byBankMap.set(f.banco, (byBankMap.get(f.banco)||0)+f.saldoFinal));
+  const byBank = [...byBankMap.entries()].map(([banco,total])=>({banco,total})).sort((a,b)=>b.total-a.total);
+  const staleCount = funds.filter(f=>f.stale).length;
+  return { funds, totalBalance, byBank, asOfDate, staleCount, uploadedAt: addDaysISO(today,-1).concat('T09:00:00.000Z'), filename:'analise_aplicacoes_exemplo.xlsx' };
 }
 
 /* ==== EXCEL PARSING ==== */
@@ -323,6 +364,160 @@ function normalizeTypeText(s){
   return String(s).trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
+function normalizeKeyText(s){
+  return normalizeTypeText(s).replace(/\s+/g,' ').trim();
+}
+function numOrZero(v){
+  const n = parseNumberCell(v);
+  return isNaN(n) ? 0 : n;
+}
+
+/* ==== APLICA\u00c7\u00d5ES (relat\u00f3rio "Analise Aplica\u00e7\u00f5es" \u2014 CONSOLIDADO + Informa\u00e7\u00f5es Fundos) ====
+ * Este relat\u00f3rio n\u00e3o \u00e9 lan\u00e7amento linha a linha: \u00e9 uma fotografia peri\u00f3dica
+ * do saldo de cada fundo. A CONSOLIDADO tem uma linha por fundo por m\u00eas \u2014
+ * pegamos sempre a linha mais recente de cada fundo (identificado de
+ * prefer\u00eancia pelo "Cod Conta Corrente", que \u00e9 est\u00e1vel mesmo quando o nome
+ * do banco/fundo vem escrito de forma diferente entre um m\u00eas e outro) e
+ * cruzamos com a Informa\u00e7\u00f5es Fundos para trazer v\u00ednculo/garantia/indexador. */
+function findSheetName(wb, patterns){
+  return wb.SheetNames.find(n => patterns.some(re => re.test(normalizeTypeText(n))));
+}
+function findHeaderIndex(header, re, excludeRe){
+  for(let i=0;i<header.length;i++){
+    const v = header[i];
+    if(v===null || v===undefined || String(v).trim()==='') continue;
+    const norm = normalizeTypeText(String(v));
+    if(excludeRe && excludeRe.test(norm)) continue;
+    if(re.test(norm)) return i;
+  }
+  return -1;
+}
+function applicationsFundKey(contaCod, banco, fundo){
+  const cc = String(contaCod||'').trim();
+  if(cc) return 'cc:'+normalizeKeyText(cc);
+  return 'bf:'+normalizeKeyText(banco)+'|'+normalizeKeyText(fundo);
+}
+function parseApplicationsWorkbook(wb){
+  const consName = findSheetName(wb, [/consolidad/]);
+  if(!consName){ const e = new Error('sheet-consolidado-not-found'); throw e; }
+  const infoName = findSheetName(wb, [/informac.*fund/, /fund.*informac/]);
+
+  const consMatrix = sheetToMatrix(wb, consName);
+  const headerIdx = guessHeaderRow(consMatrix);
+  const header = consMatrix[headerIdx] || [];
+  const col = {
+    banco: findHeaderIndex(header, /^banco$/),
+    banco2: findHeaderIndex(header, /banco\s*2|banco2/),
+    contaCod: findHeaderIndex(header, /cod.*conta/),
+    competencia: findHeaderIndex(header, /competenc/),
+    fundo: findHeaderIndex(header, /fundo/),
+    saldoInicial: findHeaderIndex(header, /saldo.*inicial/),
+    aplicacoes: findHeaderIndex(header, /aplicac/),
+    rendimentosPct: findHeaderIndex(header, /rendiment.*%|%.*rendiment/),
+    rendimentos: findHeaderIndex(header, /rendiment/, /%/),
+    imposto: findHeaderIndex(header, /imposto/),
+    resgate: findHeaderIndex(header, /resgate/),
+    saldoFinal: findHeaderIndex(header, /saldo.*final/),
+  };
+
+  const rawRows = [];
+  for(let r=headerIdx+1; r<consMatrix.length; r++){
+    const row = consMatrix[r];
+    if(!row) continue;
+    const fundoRaw = col.fundo>=0 ? row[col.fundo] : null;
+    if(fundoRaw===null || fundoRaw===undefined || String(fundoRaw).trim()==='') continue;
+    const competencia = col.competencia>=0 ? parseDateCell(row[col.competencia]) : null;
+    if(!competencia) continue;
+    const banco2Val = col.banco2>=0 ? row[col.banco2] : null;
+    const bancoRaw = (banco2Val!==null && banco2Val!==undefined && String(banco2Val).trim()!=='')
+      ? banco2Val : (col.banco>=0 ? row[col.banco] : '');
+    rawRows.push({
+      bancoRaw: String(bancoRaw||'').trim(),
+      fundoRaw: String(fundoRaw).trim(),
+      contaCod: col.contaCod>=0 ? String(row[col.contaCod]==null?'':row[col.contaCod]).trim() : '',
+      competencia,
+      saldoInicial: numOrZero(row[col.saldoInicial]),
+      aplicacoes: numOrZero(row[col.aplicacoes]),
+      rendimentos: numOrZero(row[col.rendimentos]),
+      imposto: numOrZero(row[col.imposto]),
+      resgate: numOrZero(row[col.resgate]),
+      saldoFinal: numOrZero(row[col.saldoFinal]),
+      rendimentosPct: col.rendimentosPct>=0 ? parseNumberCell(row[col.rendimentosPct]) : NaN,
+    });
+  }
+
+  const infoByKey = new Map();
+  if(infoName){
+    const infoMatrix = sheetToMatrix(wb, infoName);
+    const infoHeaderIdx = guessHeaderRow(infoMatrix);
+    const ih = infoMatrix[infoHeaderIdx] || [];
+    const icol = {
+      contaCod: findHeaderIndex(ih, /cod.*conta/),
+      banco: findHeaderIndex(ih, /^banco$/),
+      fundo: findHeaderIndex(ih, /fundo/),
+      cotizacao: findHeaderIndex(ih, /cotiza/),
+      garantia: findHeaderIndex(ih, /garantia/),
+      vinculo: findHeaderIndex(ih, /vinculo/),
+      indexador: findHeaderIndex(ih, /indexador/),
+    };
+    for(let r=infoHeaderIdx+1; r<infoMatrix.length; r++){
+      const row = infoMatrix[r];
+      if(!row) continue;
+      const fundoRaw = icol.fundo>=0 ? row[icol.fundo] : null;
+      if(fundoRaw===null || fundoRaw===undefined || String(fundoRaw).trim()==='') continue;
+      const contaCodRaw = icol.contaCod>=0 ? row[icol.contaCod] : '';
+      const bancoRaw = icol.banco>=0 ? row[icol.banco] : '';
+      const key = applicationsFundKey(contaCodRaw, bancoRaw, fundoRaw);
+      infoByKey.set(key, {
+        cotizacaoResgate: icol.cotizacao>=0 ? String(row[icol.cotizacao]==null?'':row[icol.cotizacao]).trim() : '',
+        garantia: icol.garantia>=0 ? String(row[icol.garantia]==null?'':row[icol.garantia]).trim() : '',
+        vinculo: icol.vinculo>=0 ? String(row[icol.vinculo]==null?'':row[icol.vinculo]).trim() : '',
+        indexador: icol.indexador>=0 ? String(row[icol.indexador]==null?'':row[icol.indexador]).trim() : '',
+      });
+    }
+  }
+
+  const groups = new Map();
+  rawRows.forEach(rec=>{
+    const key = applicationsFundKey(rec.contaCod, rec.bancoRaw, rec.fundoRaw);
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(rec);
+  });
+
+  let asOfDate = '';
+  groups.forEach(list=> list.forEach(rec=>{ if(rec.competencia > asOfDate) asOfDate = rec.competencia; }));
+
+  const funds = [];
+  groups.forEach((list, key)=>{
+    list.sort((a,b)=> a.competencia < b.competencia ? 1 : a.competencia > b.competencia ? -1 : 0);
+    const latest = list[0];
+    const info = infoByKey.get(key) || {};
+    const staleDays = asOfDate ? daysBetweenISO(latest.competencia, asOfDate) : 0;
+    funds.push({
+      id: key,
+      banco: latest.bancoRaw || '\u2014',
+      fundo: latest.fundoRaw,
+      contaCod: latest.contaCod,
+      saldoInicial: latest.saldoInicial, aplicacoes: latest.aplicacoes,
+      rendimentos: latest.rendimentos, imposto: latest.imposto, resgate: latest.resgate,
+      saldoFinal: latest.saldoFinal,
+      rendimentosPct: isNaN(latest.rendimentosPct) ? null : latest.rendimentosPct,
+      competencia: latest.competencia,
+      cotizacaoResgate: info.cotizacaoResgate || '', garantia: info.garantia || '',
+      vinculo: info.vinculo || '', indexador: info.indexador || '',
+      stale: staleDays > APPLICATIONS_STALE_DAYS, staleDays,
+    });
+  });
+  funds.sort((a,b)=> b.saldoFinal - a.saldoFinal);
+
+  const totalBalance = funds.reduce((s,f)=>s+f.saldoFinal, 0);
+  const byBankMap = new Map();
+  funds.forEach(f=> byBankMap.set(f.banco, (byBankMap.get(f.banco)||0) + f.saldoFinal));
+  const byBank = [...byBankMap.entries()].map(([banco,total])=>({banco,total})).sort((a,b)=>b.total-a.total);
+  const staleCount = funds.filter(f=>f.stale).length;
+
+  return { funds, totalBalance, byBank, asOfDate, staleCount, sourceSheetCons: consName, sourceSheetInfo: infoName || null };
+}
 
 /* ==== SESSÃO & CAMADA DE API ==== */
 // Este painel não depende mais da Claude — ele fala com o backend que você
@@ -337,8 +532,10 @@ const state = {
   sources: [],           // uma entrada por banco/relatório "fonte" — { id, sourceName, filename, mapping, headerSignature, rowCount, uploadedAt }
   transactions: [],       // lançamentos de todas as fontes, já combinados
   history: [],            // histórico de uploads — { bank, filename, status, rowCount, at, errorMessage? }
+  applications: null,     // fotografia mais recente de cada fundo — { funds, totalBalance, byBank, asOfDate, staleCount }
   filters: { search:'', tipo:'', status:'', conta:'' },
   historyBankFilter: '',
+  applicationsBankFilter: '',
 };
 
 let session = null;      // { token, username, role, nome } depois do login
@@ -402,6 +599,7 @@ const Api = {
   saveImport(payload){ return callApi('saveImport', payload); },
   deleteSource(sourceId){ return callApi('deleteSource', { sourceId }); },
   logHistory(entry){ return callApi('logHistory', entry); },
+  saveApplications(payload){ return callApi('saveApplications', payload); },
 };
 
 function guardSession(err){
@@ -429,10 +627,12 @@ async function loadData(opts){
     state.sources = res.sources || [];
     state.transactions = res.transactions || [];
     state.history = res.history || [];
+    state.applications = res.applications || null;
     state.usingDemo = state.accounts.length===0 && state.sources.length===0;
     setSync('on', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
     renderAll();
     if(document.getElementById('historyView') && !document.getElementById('historyView').hidden) renderHistory();
+    if(document.getElementById('applicationsView') && !document.getElementById('applicationsView').hidden) renderApplications();
   }catch(err){
     console.error('loadData', err);
     guardSession(err);
@@ -492,6 +692,16 @@ async function saveImportForSource({ sourceId, sourceName, filename, sheetName, 
 async function deleteSource(sourceId){
   try{
     await Api.deleteSource(sourceId);
+    await loadData();
+  }catch(err){ guardSession(err); throw err; }
+}
+
+// O relatório de aplicações é uma fotografia única — cada novo envio
+// substitui a anterior por completo (ao contrário das fontes bancárias,
+// que se somam umas às outras).
+async function saveApplicationsData(payload){
+  try{
+    await Api.saveApplications(payload);
     await loadData();
   }catch(err){ guardSession(err); throw err; }
 }
@@ -584,7 +794,7 @@ function activeData(){
     if(!cachedExample) cachedExample = generateExampleData();
     return cachedExample;
   }
-  return { accounts: state.accounts, transactions: state.transactions, sources: state.sources, history: state.history };
+  return { accounts: state.accounts, transactions: state.transactions, sources: state.sources, history: state.history, applications: state.applications };
 }
 
 function getRangeBounds(rangeId, transactions){
@@ -732,22 +942,28 @@ function filteredTransactions(transactions){
 /* ==== RENDER: KPIS ==== */
 function renderKPIs(k){
   const projNeg = k.projectedBalance < 0;
+  const recvBadge = k.overdueReceivable>0 ? {cls:'warn', text:'Atenção'} : null;
+  const payBadge = k.overduePayable>0 ? {cls:'crit', text:'Atraso'} : null;
   const tiles = [
     { label:'Saldo bancário', value: formatBRL(k.bankBalance), sub: 'Contas correntes' },
-    { label:'Aplicações', value: formatBRL(k.investBalance), sub: 'Investimentos e reservas' },
-    { label:'Saldo total disponível', value: formatBRL(k.totalBalance), sub: 'Bancos + aplicações', strong:true },
-    { label:'A receber previsto', value: formatBRL(k.receivableForecast), sub: k.overdueReceivable>0 ? `${formatBRL(k.overdueReceivable)} em atraso` : 'Em dia', cls:'pos',
-      badge: k.overdueReceivable>0 ? {cls:'warn', text:'Atenção'} : null },
-    { label:'A pagar previsto', value: formatBRL(k.payableForecast), sub: k.overduePayable>0 ? `${formatBRL(k.overduePayable)} em atraso` : 'Em dia', cls:'neg',
-      badge: k.overduePayable>0 ? {cls:'crit', text:'Atraso'} : null },
+    { label:'Recebimentos', value: formatBRL(k.receivedRealizedTotal), sub: 'Recebido (realizado)', cls:'pos',
+      subline: { label:'A receber', value: formatBRL(k.receivableForecast), badge: recvBadge } },
+    { label:'Pagamentos realizados', value: formatBRL(k.paidRealizedTotal), sub: 'Pago (realizado)', cls:'neg',
+      subline: { label:'A pagar', value: formatBRL(k.payableForecast), badge: payBadge } },
     { label:'Saldo projetado', value: formatBRL(k.projectedBalance), sub: 'Saldo atual + previsto', cls: projNeg?'neg':'pos',
       badge: projNeg ? {cls:'crit', text:'Negativo'} : null },
+    { label:'Aplicações', value: formatBRL(k.investBalance), sub: 'Investimentos e reservas' },
+    { label:'Saldo total disponível', value: formatBRL(k.totalBalance), sub: 'Bancos + aplicações', strong:true },
   ];
   document.getElementById('kpiRow').innerHTML = tiles.map(t=>`
     <div class="kpi-tile">
       <div class="kpi-label"><span>${escapeHtml(t.label)}</span>${t.badge?`<span class="kpi-badge ${t.badge.cls}">${t.badge.text}</span>`:''}</div>
       <div class="kpi-value num ${t.cls||''}">${t.value}</div>
       <div class="kpi-sub">${escapeHtml(t.sub)}</div>
+      ${t.subline ? `<div class="kpi-subline">
+        <div class="kpi-subline-top"><span>${escapeHtml(t.subline.label)}</span>${t.subline.badge?`<span class="kpi-badge ${t.subline.badge.cls}">${t.subline.badge.text}</span>`:''}</div>
+        <b class="num">${t.subline.value}</b>
+      </div>` : ''}
     </div>`).join('');
 }
 
@@ -1098,10 +1314,15 @@ async function exportCsv(){
 
 /* ==== VIEWS (Painel / Histórico) ==== */
 function switchView(view){
-  document.getElementById('dashboardView').hidden = view!=='dashboard';
-  document.getElementById('historyView').hidden = view!=='history';
+  const dash = document.getElementById('dashboardView');
+  const hist = document.getElementById('historyView');
+  const apps = document.getElementById('applicationsView');
+  if(dash) dash.hidden = view!=='dashboard';
+  if(hist) hist.hidden = view!=='history';
+  if(apps) apps.hidden = view!=='applications';
   document.querySelectorAll('#viewTabs [data-view]').forEach(b=> b.classList.toggle('active', b.dataset.view===view));
   if(view==='history') renderHistory();
+  if(view==='applications') renderApplications();
 }
 
 function renderHistoryBankFilterOptions(history){
@@ -1130,6 +1351,88 @@ function renderHistory(){
   document.getElementById('historyFooter').textContent = `${filtered.length} envio${filtered.length===1?'':'s'} registrado${filtered.length===1?'':'s'}`;
 }
 
+/* ==== VIEW: APLICAÇÕES ==== */
+function renderApplicationsBankFilterOptions(funds){
+  const sel = document.getElementById('appsBankFilter');
+  if(!sel) return;
+  const banks = [...new Set(funds.map(f=>f.banco))].sort();
+  const current = state.applicationsBankFilter;
+  sel.innerHTML = `<option value="">Todos os bancos</option>` + banks.map(b=>
+    `<option value="${escapeHtml(b)}" ${b===current?'selected':''}>${escapeHtml(b)}</option>`).join('');
+}
+
+function renderApplications(){
+  const { applications } = activeData();
+  const kpiRow = document.getElementById('appsKpiRow');
+  const byBankList = document.getElementById('appsByBankList');
+  const staleBanner = document.getElementById('appsStaleBanner');
+  const body = document.getElementById('appsTableBody');
+  const footer = document.getElementById('appsFooter');
+  if(!kpiRow || !body) return;
+
+  if(!applications || !applications.funds || !applications.funds.length){
+    kpiRow.innerHTML = '';
+    if(byBankList) byBankList.innerHTML = `<div class="empty-state">Nenhum dado carregado ainda.</div>`;
+    if(staleBanner) staleBanner.innerHTML = '';
+    body.innerHTML = `<tr><td colspan="14"><div class="empty-state">Nenhum relatório de aplicações carregado ainda${state.canEdit ? ' — use "Carregar relatório" e selecione "Análise Aplicações".' : '.'}</div></td></tr>`;
+    if(footer) footer.textContent = '';
+    return;
+  }
+
+  const tiles = [
+    { label:'Saldo total em aplicações', value: formatBRL(applications.totalBalance), sub: `${applications.funds.length} fundo${applications.funds.length===1?'':'s'}` },
+    { label:'Dados até', value: formatDateBR(applications.asOfDate), sub: 'Competência mais recente encontrada' },
+    { label:'Desatualizados', value: String(applications.staleCount||0), sub: `Sem atualização há mais de ${APPLICATIONS_STALE_DAYS} dias`, cls: applications.staleCount>0?'neg':'' },
+  ];
+  kpiRow.className = 'kpi-row';
+  kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
+  kpiRow.innerHTML = tiles.map(t=>`
+    <div class="kpi-tile">
+      <div class="kpi-label"><span>${escapeHtml(t.label)}</span></div>
+      <div class="kpi-value num ${t.cls||''}">${escapeHtml(t.value)}</div>
+      <div class="kpi-sub">${escapeHtml(t.sub)}</div>
+    </div>`).join('');
+
+  if(staleBanner){
+    staleBanner.innerHTML = applications.staleCount>0
+      ? `<div class="demo-banner"><span>&#9888;</span><span><b>${applications.staleCount} fundo(s)</b> sem atualização há mais de ${APPLICATIONS_STALE_DAYS} dias — exibidos com o aviso "desatualizado" abaixo. Confirme se ainda estão ativos antes de considerar o saldo.</span></div>`
+      : '';
+  }
+
+  if(byBankList){
+    byBankList.innerHTML = applications.byBank.map(b=>`
+      <div class="account-row">
+        <div><div class="account-name">${escapeHtml(b.banco)}</div></div>
+        <div class="account-bal num">${formatBRL(b.total)}</div>
+      </div>`).join('') || `<div class="empty-state">Sem dados.</div>`;
+  }
+
+  renderApplicationsBankFilterOptions(applications.funds);
+  const filtered = state.applicationsBankFilter
+    ? applications.funds.filter(f=>f.banco===state.applicationsBankFilter)
+    : applications.funds;
+
+  body.innerHTML = filtered.length ? filtered.map(f=>`
+    <tr>
+      <td>${escapeHtml(f.banco)}</td>
+      <td>${escapeHtml(f.fundo)}</td>
+      <td>${escapeHtml(f.contaCod||'—')}</td>
+      <td class="num">${formatDateBR(f.competencia)}${f.stale?` <span class="kpi-badge warn" title="Sem atualização há ${f.staleDays} dias">desatualizado</span>`:''}</td>
+      <td class="num-col num">${formatBRL(f.saldoInicial,true)}</td>
+      <td class="num-col num">${formatBRL(f.aplicacoes,true)}</td>
+      <td class="num-col num" style="color:var(--in-text)">${formatBRL(f.rendimentos,true)}</td>
+      <td class="num-col num">${formatBRL(f.imposto,true)}</td>
+      <td class="num-col num">${formatBRL(f.resgate,true)}</td>
+      <td class="num-col num" style="font-weight:600;">${formatBRL(f.saldoFinal,true)}</td>
+      <td class="num-col num">${f.rendimentosPct==null ? '—' : f.rendimentosPct.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%'}</td>
+      <td>${escapeHtml(f.vinculo||'—')}</td>
+      <td>${escapeHtml(f.garantia||'—')}</td>
+      <td>${escapeHtml(f.indexador||'—')}</td>
+    </tr>`).join('') : `<tr><td colspan="14"><div class="empty-state">Nenhum fundo encontrado com o filtro atual.</div></td></tr>`;
+
+  if(footer) footer.textContent = `${filtered.length} fundo${filtered.length===1?'':'s'}`;
+}
+
 /* ==== UPLOAD WIZARD ==== */
 let wz = null;
 function freshWizardState(){
@@ -1147,8 +1450,10 @@ function freshWizardState(){
     },
     parsedRows: [], parseErrorCount: 0,
     appliedSavedMapping: false,
+    appsResult: null, appsError: null,
   };
 }
+function isApplicationsSource(){ return !!wz && wz.sourceName === APPLICATIONS_SOURCE; }
 function distinctColumnValues(matrix, headerRowIdx, colIdx, limit){
   if(colIdx===null||colIdx===undefined) return [];
   const map = new Map();
@@ -1195,17 +1500,29 @@ function openUploadModal(){
 function closeUploadModal(){ document.getElementById('uploadModal').hidden = true; }
 
 function updateWizardChrome(){
+  const apps = isApplicationsSource();
   document.querySelectorAll('.step-dot').forEach((el,i)=>{
-    el.classList.toggle('active', i===wz.step);
-    el.classList.toggle('done', i<wz.step);
+    if(apps){
+      el.style.display = (i===0 || i===3) ? '' : 'none';
+      el.classList.toggle('active', i===wz.step);
+      el.classList.toggle('done', i===0 && wz.step===3);
+    } else {
+      el.style.display = '';
+      el.classList.toggle('active', i===wz.step);
+      el.classList.toggle('done', i<wz.step);
+    }
   });
-  const titles = ['Carregar relatório','Formato dos valores','Mapear colunas','Prévia e confirmação'];
-  const subs = [
-    'Envie a planilha de fluxo de caixa exportada do seu sistema.',
-    'Como as entradas e saídas aparecem na sua planilha?',
-    'Diga ao painel onde encontrar cada informação.',
-    'Confira os lançamentos antes de salvar.',
-  ];
+  const titles = apps
+    ? ['Carregar relatório', '', '', 'Prévia e confirmação']
+    : ['Carregar relatório','Formato dos valores','Mapear colunas','Prévia e confirmação'];
+  const subs = apps
+    ? ['Envie a planilha "Analise Aplicações" (abas CONSOLIDADO e Informações Fundos).', '', '', 'Confira o saldo mais recente de cada fundo antes de salvar.']
+    : [
+      'Envie a planilha de fluxo de caixa exportada do seu sistema.',
+      'Como as entradas e saídas aparecem na sua planilha?',
+      'Diga ao painel onde encontrar cada informação.',
+      'Confira os lançamentos antes de salvar.',
+    ];
   document.getElementById('wizardTitle').textContent = titles[wz.step];
   document.getElementById('wizardSubtitle').textContent = subs[wz.step];
   document.getElementById('wizardBack').hidden = wz.step===0;
@@ -1217,6 +1534,7 @@ function renderWizardStep(){
   const body = document.getElementById('wizardBody');
   const nextBtn = document.getElementById('wizardNext');
   if(wz.step===0) return renderStep0(body, nextBtn);
+  if(isApplicationsSource() && wz.step===3) return renderApplicationsPreview(body, nextBtn);
   if(wz.step===1) return renderStep1(body, nextBtn);
   if(wz.step===2) return renderStep2(body, nextBtn);
   if(wz.step===3) return renderStep3(body, nextBtn);
@@ -1224,16 +1542,24 @@ function renderWizardStep(){
 
 function renderStep0(body, nextBtn){
   const isKnownBank = wz.sourceName && BANKS.includes(wz.sourceName);
-  const isOther = wz.sourceName && !isKnownBank;
+  const isApps = wz.sourceName === APPLICATIONS_SOURCE;
+  const isOther = wz.sourceName && !isKnownBank && !isApps;
   body.innerHTML = `
     <div class="field">
       <label for="bankSelect">Banco deste relatório</label>
       <select id="bankSelect">
         <option value="" ${!wz.sourceName ? 'selected' : ''}>— selecione —</option>
-        ${BANKS.map(b=>`<option value="${escapeHtml(b)}" ${wz.sourceName===b?'selected':''}>${escapeHtml(b)}</option>`).join('')}
-        <option value="${OTHER_BANK}" ${isOther?'selected':''}>Outro banco/sistema…</option>
+        <optgroup label="Bancos">
+          ${BANKS.map(b=>`<option value="${escapeHtml(b)}" ${wz.sourceName===b?'selected':''}>${escapeHtml(b)}</option>`).join('')}
+          <option value="${OTHER_BANK}" ${isOther?'selected':''}>Outro banco/sistema…</option>
+        </optgroup>
+        <optgroup label="Relatórios especiais">
+          <option value="${escapeHtml(APPLICATIONS_SOURCE)}" ${isApps?'selected':''}>${escapeHtml(APPLICATIONS_SOURCE)} (fundos)</option>
+        </optgroup>
       </select>
-      <div class="field-hint">O layout do relatório muda conforme o banco — por isso cada um guarda seu próprio mapeamento de colunas, lembrado automaticamente da próxima vez que você enviar um arquivo dele.</div>
+      <div class="field-hint">${isApps
+        ? 'Envie a planilha "Analise Aplicações", com as abas "CONSOLIDADO" e "Informações Fundos" — o painel identifica sozinho o saldo mais recente de cada fundo.'
+        : 'O layout do relatório muda conforme o banco — por isso cada um guarda seu próprio mapeamento de colunas, lembrado automaticamente da próxima vez que você enviar um arquivo dele.'}</div>
     </div>
     <div class="field" id="otherBankField" ${isOther ? '' : 'hidden'}>
       <label for="otherBankInput">Nome do banco/sistema</label>
@@ -1254,6 +1580,9 @@ function renderStep0(body, nextBtn){
       wz.sourceName = e.target.value;
       document.getElementById('otherBankField').hidden = true;
     }
+    wz.appsResult = null; wz.appsError = null;
+    const area = document.getElementById('sheetArea');
+    if(area) area.innerHTML = '';
     updateNextEnabled();
   };
   const otherInput = document.getElementById('otherBankInput');
@@ -1274,9 +1603,27 @@ function renderStep0(body, nextBtn){
 
 async function handleFile(file){
   wz.file = file;
+  wz.appsResult = null; wz.appsError = null;
   try{
     wz.workbook = await readWorkbookFile(file);
     wz.sheetNames = wz.workbook.SheetNames;
+    if(isApplicationsSource()){
+      try{
+        const result = parseApplicationsWorkbook(wz.workbook);
+        if(!result.funds.length) throw new Error('no-funds-found');
+        wz.appsResult = result;
+      }catch(err){
+        console.error(err);
+        wz.appsResult = null;
+        wz.appsError = (err && err.message==='sheet-consolidado-not-found')
+          ? 'Não encontramos a aba "CONSOLIDADO" nesta planilha.'
+          : 'Não foi possível identificar os fundos neste arquivo. Confira se é o relatório "Analise Aplicações".';
+      }
+      renderStep0(document.getElementById('wizardBody'), document.getElementById('wizardNext'));
+      renderApplicationsSummaryArea();
+      updateNextEnabled();
+      return;
+    }
     wz.sheetName = wz.sheetNames[0];
     loadSheetIntoWizard();
     renderStep0(document.getElementById('wizardBody'), document.getElementById('wizardNext'));
@@ -1285,6 +1632,25 @@ async function handleFile(file){
     console.error(err);
     showToast('Não foi possível ler este arquivo. Verifique se é uma planilha Excel válida.', true);
   }
+}
+function renderApplicationsSummaryArea(){
+  const area = document.getElementById('sheetArea');
+  if(!area) return;
+  if(wz.appsError){
+    area.innerHTML = `<div class="demo-banner" style="margin-top:12px;"><span>&#9888;</span><span>${escapeHtml(wz.appsError)}</span></div>`;
+    return;
+  }
+  if(!wz.appsResult){ area.innerHTML = ''; return; }
+  const r = wz.appsResult;
+  area.innerHTML = `
+    <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin:12px 0 0;">
+      <div class="kpi-tile"><div class="kpi-label">Fundos encontrados</div><div class="kpi-value num">${r.funds.length}</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Saldo total</div><div class="kpi-value num">${formatBRL(r.totalBalance)}</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Dados até</div><div class="kpi-value num" style="font-size:16px;">${formatDateBR(r.asOfDate)}</div></div>
+    </div>
+    ${r.staleCount>0 ? `<div class="demo-banner" style="margin-top:12px;"><span>&#9432;</span><span>${r.staleCount} fundo(s) sem atualização recente — serão marcados como "desatualizado" na tela de Aplicações.</span></div>` : ''}
+    ${!r.sourceSheetInfo ? `<div class="field-hint" style="margin-top:8px;">Não encontramos a aba "Informações Fundos" — os fundos serão salvos sem vínculo, garantia, cotização e indexador.</div>` : ''}
+  `;
 }
 function loadSheetIntoWizard(){
   wz.matrix = sheetToMatrix(wz.workbook, wz.sheetName);
@@ -1352,7 +1718,12 @@ function renderRawPreviewTable(){
   return html;
 }
 function updateNextEnabled(){
-  const ok = !!(wz.sourceName && wz.sourceName.trim()) && wz.matrix && wz.sheetName && wz.matrix.length > wz.headerRowIdx+1;
+  let ok;
+  if(isApplicationsSource()){
+    ok = !!(wz.appsResult && wz.appsResult.funds.length);
+  } else {
+    ok = !!(wz.sourceName && wz.sourceName.trim()) && wz.matrix && wz.sheetName && wz.matrix.length > wz.headerRowIdx+1;
+  }
   document.getElementById('wizardNext').disabled = !ok;
 }
 
@@ -1572,6 +1943,65 @@ function renderStep3(body, nextBtn){
   nextBtn.disabled = rows.length===0;
 }
 
+function renderApplicationsPreview(body, nextBtn){
+  const r = wz.appsResult;
+  if(!r){ body.innerHTML = `<div class="empty-state">Nenhum dado para pré-visualizar.</div>`; nextBtn.disabled = true; return; }
+  const byBankRows = r.byBank.map(b=>`<tr><td>${escapeHtml(b.banco)}</td><td class="num-col num">${formatBRL(b.total)}</td></tr>`).join('');
+  const fundRows = r.funds.slice(0, MAX_PREVIEW_ROWS).map(f=>`
+    <tr>
+      <td>${escapeHtml(f.banco)}</td>
+      <td>${escapeHtml(f.fundo)}</td>
+      <td class="num">${formatDateBR(f.competencia)}${f.stale?` <span class="kpi-badge warn" title="Sem atualização há ${f.staleDays} dias">desatualizado</span>`:''}</td>
+      <td class="num-col num">${formatBRL(f.saldoFinal,true)}</td>
+    </tr>`).join('');
+  body.innerHTML = `
+    <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin:0 0 14px;">
+      <div class="kpi-tile"><div class="kpi-label">Fundos</div><div class="kpi-value num">${r.funds.length}</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Saldo total</div><div class="kpi-value num">${formatBRL(r.totalBalance)}</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Dados até</div><div class="kpi-value num" style="font-size:16px;">${formatDateBR(r.asOfDate)}</div></div>
+    </div>
+    ${r.staleCount>0 ? `<div class="demo-banner" style="margin-bottom:12px;"><span>&#9888;</span><span>${r.staleCount} fundo(s) sem atualização recente — marcados como "desatualizado" abaixo e na tela de Aplicações.</span></div>` : ''}
+    <div class="preview-table-wrap" style="margin-bottom:14px;">
+      <table class="preview-table"><thead><tr><th>Banco</th><th class="num-col">Saldo</th></tr></thead><tbody>${byBankRows}</tbody></table>
+    </div>
+    <div class="preview-table-wrap">
+      <table class="preview-table">
+        <thead><tr><th>Banco</th><th>Fundo</th><th>Competência</th><th>Saldo final</th></tr></thead>
+        <tbody>${fundRows}</tbody>
+      </table>
+    </div>
+    ${r.funds.length>MAX_PREVIEW_ROWS ? `<div class="field-hint" style="margin-top:6px;">…e mais ${r.funds.length-MAX_PREVIEW_ROWS} fundo(s).</div>` : ''}
+  `;
+  nextBtn.disabled = r.funds.length===0;
+}
+
+async function finishApplicationsWizard(){
+  const nextBtn = document.getElementById('wizardNext');
+  nextBtn.disabled = true; nextBtn.textContent = 'Salvando…';
+  try{
+    let fileBase64 = null;
+    try{ fileBase64 = await fileToBase64(wz.file); }catch(e){ /* guardar o original é best-effort */ }
+    await saveApplicationsData({
+      filename: wz.file.name, asOfDate: wz.appsResult.asOfDate,
+      totalBalance: wz.appsResult.totalBalance, byBank: wz.appsResult.byBank,
+      funds: wz.appsResult.funds, fileBase64, fileMime: wz.file.type||'',
+    });
+    logUploadHistory({ bank: APPLICATIONS_SOURCE, filename: wz.file.name, status:'concluido', rowCount: wz.appsResult.funds.length });
+    closeUploadModal();
+    showToast(`Relatório de aplicações carregado: ${wz.appsResult.funds.length} fundos.`);
+  }catch(err){
+    console.error(err);
+    const msg = (err && err.code==='forbidden')
+      ? 'Você não tem permissão para carregar relatórios neste painel.'
+      : (err && err.code==='session_expired')
+        ? 'Sua sessão expirou — faça login novamente.'
+        : 'Não foi possível salvar os dados. Tente novamente.';
+    showToast(msg, true);
+    logUploadHistory({ bank: APPLICATIONS_SOURCE, filename: wz.file && wz.file.name, status:'erro', errorMessage: msg });
+    nextBtn.disabled = false; nextBtn.textContent = 'Salvar dados';
+  }
+}
+
 // Lê o arquivo original como base64 puro (sem o prefixo "data:...;base64,")
 // para guardarmos uma cópia dele no Drive, além dos lançamentos já extraídos.
 function fileToBase64(file){
@@ -1617,12 +2047,17 @@ async function finishWizard(){
 }
 
 function wizardGoNext(){
+  if(isApplicationsSource()){
+    if(wz.step===0){ wz.step = 3; renderWizardStep(); return; }
+    if(wz.step===3){ finishApplicationsWizard(); return; }
+  }
   if(wz.step===0){ applySavedMappingForSource(); }
   if(wz.step===3){ finishWizard(); return; }
   wz.step++;
   renderWizardStep();
 }
 function wizardGoBack(){
+  if(isApplicationsSource() && wz.step===3){ wz.step = 0; renderWizardStep(); return; }
   wz.step--;
   renderWizardStep();
 }
@@ -1710,6 +2145,11 @@ function wireStaticEvents(){
   document.getElementById('histBankFilter').addEventListener('change', (e)=>{
     state.historyBankFilter = e.target.value;
     renderHistory();
+  });
+  const appsBankFilterEl = document.getElementById('appsBankFilter');
+  if(appsBankFilterEl) appsBankFilterEl.addEventListener('change', (e)=>{
+    state.applicationsBankFilter = e.target.value;
+    renderApplications();
   });
 
   document.getElementById('btnUpload').onclick = openUploadModal;

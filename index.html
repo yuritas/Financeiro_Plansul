@@ -41,7 +41,7 @@
 <div class="app" id="app" hidden>
   <header class="topbar">
     <div class="brand">
-      <img class="brand-mark" src="assets/plansul-mark-navy.png" alt="Plansul">
+      <img class="brand-mark" src="assets/plansul-mark-real.png" alt="Plansul">
       <span class="brand-divider" aria-hidden="true"></span>
       <div class="brand-text">
         <h1>Fluxo de Caixa</h1>
@@ -64,6 +64,7 @@
   <nav class="range-control" id="viewTabs" style="margin:0 4px 14px;width:fit-content;">
     <button class="range-btn active" data-view="dashboard">Painel</button>
     <button class="range-btn" data-view="history">Histórico de uploads</button>
+    <button class="range-btn" data-view="applications">Aplicações</button>
   </nav>
 
   <div class="demo-banner" id="demoBanner" hidden>
@@ -175,6 +176,38 @@
       </table>
     </div>
     <div class="table-footer" id="historyFooter"></div>
+  </section>
+
+  <section class="card table-card" id="applicationsView" hidden>
+    <div class="card-head">
+      <h2>Aplicações — saldo por fundo</h2>
+      <div class="table-filters">
+        <select id="appsBankFilter"><option value="">Todos os bancos</option></select>
+      </div>
+    </div>
+    <div class="kpi-row" id="appsKpiRow" style="margin-bottom:14px;"></div>
+    <div id="appsStaleBanner"></div>
+    <div class="main-grid" style="grid-template-columns: 1fr 260px;">
+      <div class="table-wrap">
+        <table id="appsTable">
+          <thead>
+            <tr>
+              <th>Banco</th><th>Fundo</th><th>Conta</th><th>Competência</th>
+              <th class="num-col">Saldo inicial</th><th class="num-col">Aplicações</th>
+              <th class="num-col">Rendimentos</th><th class="num-col">Imposto</th>
+              <th class="num-col">Resgate</th><th class="num-col">Saldo final</th>
+              <th class="num-col">Rend. %</th><th>Vínculo</th><th>Garantia</th><th>Indexador</th>
+            </tr>
+          </thead>
+          <tbody id="appsTableBody"></tbody>
+        </table>
+      </div>
+      <aside class="card" style="margin:0;">
+        <div class="card-head"><h2>Saldo por banco</h2></div>
+        <div class="account-list" id="appsByBankList"></div>
+      </aside>
+    </div>
+    <div class="table-footer" id="appsFooter"></div>
   </section>
 
   <footer class="app-footer">

@@ -105,9 +105,7 @@
   }
   .brand{ display:flex; align-items:center; gap: 14px; }
   .brand-mark{
-    width: 40px; height: 40px; border-radius: var(--radius-s);
-    display:block; object-fit: cover; flex-shrink: 0;
-    box-shadow: var(--shadow);
+    height: 36px; width: auto; display:block; flex-shrink: 0;
   }
   .brand-divider{ width:1px; align-self:stretch; background: var(--line); flex-shrink:0; }
   .brand-text h1{ font-size: 22px; line-height: 1.1; }
@@ -170,6 +168,13 @@
   }
   .kpi-badge.warn{ background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning); }
   .kpi-badge.crit{ background: var(--out-soft); color: var(--critical); }
+  .kpi-subline{
+    display:flex; flex-direction:column; gap:3px; margin-top:8px; padding-top:8px;
+    border-top:1px dashed var(--line); font-size:11px; color: var(--ink-muted);
+  }
+  .kpi-subline-top{ display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .kpi-subline b{ color: var(--ink); font-size:13px; font-weight:600; }
+  .kpi-subline .kpi-badge{ flex-shrink:0; }
 
   /* ============ MAIN GRID ============ */
   .main-grid{ display:grid; grid-template-columns: 1fr 300px; gap: 14px; margin: 0 4px 14px; align-items:start; }
