@@ -1,26 +1,26 @@
-  /* ============ DESIGN TOKENS ============ */
+  /* ============ DESIGN TOKENS (paleta Plansul: navy #024766 / teal #23a094) ============ */
   :root{
     color-scheme: light;
-    --paper:        #f5f6ef;
-    --card:         #fdfdf9;
+    --paper:        #f2f6f7;
+    --card:         #ffffff;
     --card-raised:  #ffffff;
-    --ink:          #15150f;
-    --ink-soft:     #56564a;
-    --ink-muted:    #8b8a7c;
-    --line:         #dedcc9;
-    --line-soft:    #e9e7da;
-    --accent:       #2d4a6b;
+    --ink:          #10262f;
+    --ink-soft:     #4a5d66;
+    --ink-muted:    #86969b;
+    --line:         #d7e0e3;
+    --line-soft:    #e7edef;
+    --accent:       #024766;
     --accent-ink:   #ffffff;
-    --accent-soft:  #e4ebf1;
-    --in:           #1baf7a;
-    --in-text:      #006300;
-    --in-soft:      #d9f0e6;
-    --out:          #e34948;
-    --out-soft:     #fbdedd;
-    --good:         #0ca30c;
+    --accent-soft:  #e0ebef;
+    --in:           #1e9c8f;
+    --in-text:      #0f766b;
+    --in-soft:      #def3ef;
+    --out:          #d14545;
+    --out-soft:     #fbe3e2;
+    --good:         #1e9c8f;
     --warning:      #b5790f;
-    --critical:     #d03b3b;
-    --shadow:       0 1px 2px rgba(21,21,15,0.04), 0 8px 24px -12px rgba(21,21,15,0.12);
+    --critical:     #d14545;
+    --shadow:       0 1px 2px rgba(16,38,47,0.05), 0 8px 24px -12px rgba(16,38,47,0.14);
     --radius-s: 6px;
     --radius-m: 10px;
     --radius-l: 16px;
@@ -28,49 +28,49 @@
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       color-scheme: dark;
-      --paper:        #111110;
-      --card:         #1a1a17;
-      --card-raised:  #201f1b;
-      --ink:          #f6f5ef;
-      --ink-soft:     #c7c4b6;
-      --ink-muted:    #8f8c7f;
-      --line:         #33322a;
-      --line-soft:    #2a291f;
-      --accent:       #7fa9c9;
-      --accent-ink:   #0d1a24;
-      --accent-soft:  #1e2b35;
-      --in:           #199e70;
-      --in-text:      #199e70;
-      --in-soft:      #163627;
-      --out:          #e66767;
-      --out-soft:     #3a2020;
-      --good:         #0ca30c;
-      --warning:      #d99a2b;
-      --critical:     #e66767;
+      --paper:        #081821;
+      --card:         #0f242d;
+      --card-raised:  #142b35;
+      --ink:          #e9f1f3;
+      --ink-soft:     #b4c5ca;
+      --ink-muted:    #7a8d93;
+      --line:         #1f3a46;
+      --line-soft:    #172e38;
+      --accent:       #4fc3b0;
+      --accent-ink:   #062023;
+      --accent-soft:  #113937;
+      --in:           #2fc7b3;
+      --in-text:      #57d9c7;
+      --in-soft:      #113937;
+      --out:          #e8746f;
+      --out-soft:     #3a1e1d;
+      --good:         #2fc7b3;
+      --warning:      #e0a63e;
+      --critical:     #e8746f;
       --shadow:       0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
     }
   }
   :root[data-theme="dark"]{
     color-scheme: dark;
-    --paper:        #111110;
-    --card:         #1a1a17;
-    --card-raised:  #201f1b;
-    --ink:          #f6f5ef;
-    --ink-soft:     #c7c4b6;
-    --ink-muted:    #8f8c7f;
-    --line:         #33322a;
-    --line-soft:    #2a291f;
-    --accent:       #7fa9c9;
-    --accent-ink:   #0d1a24;
-    --accent-soft:  #1e2b35;
-    --in:           #199e70;
-    --in-text:      #199e70;
-    --in-soft:      #163627;
-    --out:          #e66767;
-    --out-soft:     #3a2020;
-    --good:         #0ca30c;
-    --warning:      #d99a2b;
-    --critical:     #e66767;
+    --paper:        #081821;
+    --card:         #0f242d;
+    --card-raised:  #142b35;
+    --ink:          #e9f1f3;
+    --ink-soft:     #b4c5ca;
+    --ink-muted:    #7a8d93;
+    --line:         #1f3a46;
+    --line-soft:    #172e38;
+    --accent:       #4fc3b0;
+    --accent-ink:   #062023;
+    --accent-soft:  #113937;
+    --in:           #2fc7b3;
+    --in-text:      #57d9c7;
+    --in-soft:      #113937;
+    --out:          #e8746f;
+    --out-soft:     #3a1e1d;
+    --good:         #2fc7b3;
+    --warning:      #e0a63e;
+    --critical:     #e8746f;
     --shadow:       0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
   }
 
@@ -89,7 +89,7 @@
     background-attachment: local;
   }
   .app{ background: transparent; }
-  h1,h2,h3{ font-family: "Fraunces", Georgia, serif; font-weight: 600; margin:0; text-wrap: balance; }
+  h1,h2,h3{ font-family: "IBM Plex Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: -0.01em; margin:0; text-wrap: balance; }
   .num{ font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; }
   a{ color: var(--accent); }
   button{ font-family: inherit; }
@@ -103,16 +103,16 @@
     gap: 16px; padding: 14px 4px 18px;
     flex-wrap: wrap;
   }
-  .brand{ display:flex; align-items:center; gap: 12px; }
+  .brand{ display:flex; align-items:center; gap: 14px; }
   .brand-mark{
     width: 40px; height: 40px; border-radius: var(--radius-s);
-    background: var(--accent); color: var(--accent-ink);
-    display:flex; align-items:center; justify-content:center;
-    font-family: "Fraunces", serif; font-weight: 700; font-size: 15px; letter-spacing: 0.02em;
-    flex-shrink: 0;
+    display:block; object-fit: cover; flex-shrink: 0;
+    box-shadow: var(--shadow);
   }
+  .brand-divider{ width:1px; align-self:stretch; background: var(--line); flex-shrink:0; }
   .brand-text h1{ font-size: 22px; line-height: 1.1; }
   .brand-sub{ margin: 3px 0 0; color: var(--ink-muted); font-size: 12.5px; }
+  .login-logo{ display:block; height: 30px; width:auto; margin: 4px 0 16px; }
   .topbar-right{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
   .sync-status{
     display:flex; align-items:center; gap:7px;
