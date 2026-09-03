@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fluxo de Caixa Plansul — Diretoria</title>
+<link rel="icon" type="image/png" sizes="256x256" href="assets/favicon-256.png">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/favicon-64.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Tela de login -->
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal login-card">
+    <div class="modal-head">
+      <img class="login-logo" src="assets/plansul-wordmark.png" alt="Plansul">
+      <h2>Fluxo de Caixa Plansul</h2>
+      <p>Acesso da diretoria — acompanhamento e visualização.</p>
+    </div>
+    <form class="modal-body" id="loginForm">
+      <div class="field">
+        <label for="loginUser">Usuário</label>
+        <input type="text" id="loginUser" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="loginPass">Senha</label>
+        <input type="password" id="loginPass" autocomplete="current-password" required>
+      </div>
+      <p class="login-error" id="loginError" hidden></p>
+    </form>
+    <div class="modal-foot" style="justify-content:flex-end;">
+      <button type="submit" form="loginForm" class="btn btn-primary" id="loginSubmit">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-mark" src="assets/plansul-mark-real.png" alt="Plansul">
+      <span class="brand-divider" aria-hidden="true"></span>
+      <div class="brand-text">
+        <h1>Fluxo de Caixa</h1>
+        <p class="brand-sub">Plansul &middot; visão da diretoria</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="sync-status" id="syncStatus"><span class="sync-dot off" id="syncDot"></span><span id="syncLabel">Conectando…</span></div>
+      <span class="kpi-badge warn" id="readonlyPill" hidden title="Somente a equipe financeira pode carregar relatórios ou editar contas">Somente leitura</span>
+      <div class="user-badge">
+        <span id="userName"></span>
+        <span class="user-role" id="userRole"></span>
+      </div>
+      <button class="btn btn-ghost" id="btnLogout">Sair</button>
+      <button class="btn btn-ghost" id="btnExport">Exportar CSV</button>
+      <button class="btn btn-primary" id="btnUpload" hidden>Carregar relatório</button>
+    </div>
+  </header>
+
+  <div class="demo-banner" id="demoBanner" hidden>
+    <span>&#9432;</span>
+    <span><b>Mostrando dados de exemplo.</b> Carregue um relatório em Excel para ver os números reais do Plansul — o painel atualiza sozinho a cada novo envio.</span>
+  </div>
+
+  <div id="dashboardView" hidden>
+  <section class="kpi-row" id="kpiRow"></section>
+
+  <section class="main-grid">
+    <div class="charts-col">
+      <div class="card chart-card">
+        <div class="card-head">
+          <h2>Fluxo diário — recebido &times; pago</h2>
+          <div class="range-control" id="rangeControl"></div>
+        </div>
+        <div class="chart-legend" id="dailyLegend"></div>
+        <div class="chart-wrap" id="dailyChartWrap">
+          <svg id="dailyChart" viewBox="0 0 960 260"></svg>
+          <div class="chart-tooltip" id="dailyTooltip"></div>
+        </div>
+      </div>
+      <div class="card chart-card">
+        <div class="card-head"><h2>Saldo acumulado projetado</h2></div>
+        <div class="chart-wrap" id="cumChartWrap">
+          <svg id="cumChart" viewBox="0 0 960 200"></svg>
+          <div class="chart-tooltip" id="cumTooltip"></div>
+        </div>
+      </div>
+    </div>
+    <aside class="side-col">
+      <div class="card">
+        <div class="card-head">
+          <h2>Contas &amp; aplicações</h2>
+          <button class="btn btn-small" id="btnAddAccount" hidden>+ Conta</button>
+        </div>
+        <div class="account-list" id="accountList"></div>
+        <div class="account-total" id="accountTotal"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Relatórios carregados</h2></div>
+        <div class="account-list" id="sourceList"></div>
+        <div class="field-hint">Cada fonte (banco/sistema) é guardada separadamente — carregar um novo arquivo substitui só os lançamentos dela.</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Maiores categorias</h2></div>
+        <div class="category-list" id="categoryList"></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="card table-card">
+    <div class="card-head">
+      <h2>Lançamentos</h2>
+      <div class="table-filters" id="tableFilters">
+        <input type="search" id="fSearch" placeholder="Buscar descrição, conta, categoria…">
+        <select id="fTipo">
+          <option value="">Todos os tipos</option>
+          <option value="recebimento">Recebimento</option>
+          <option value="pagamento">Pagamento</option>
+        </select>
+        <select id="fStatus">
+          <option value="">Todos os status</option>
+          <option value="realizado">Realizado</option>
+          <option value="previsto">Previsto</option>
+        </select>
+        <select id="fConta"><option value="">Todas as contas</option></select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="txTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th>Conta</th>
+            <th>Status</th>
+            <th class="num-col">Valor</th>
+          </tr>
+        </thead>
+        <tbody id="txTableBody"></tbody>
+      </table>
+    </div>
+    <div class="table-footer" id="tableFooter"></div>
+  </section>
+  </div>
+
+  <section class="card table-card" id="historyView" hidden>
+    <div class="card-head">
+      <h2>Histórico de uploads</h2>
+      <div class="table-filters">
+        <select id="histBankFilter"><option value="">Todos os bancos</option></select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>Banco</th>
+            <th>Arquivo</th>
+            <th>Data/hora</th>
+            <th>Status</th>
+            <th class="num-col">Lançamentos</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody"></tbody>
+      </table>
+    </div>
+    <div class="table-footer" id="historyFooter"></div>
+  </section>
+
+  <section class="card table-card" id="applicationsView">
+    <div class="card-head">
+      <h2>Aplicações — saldo por fundo</h2>
+      <div class="table-filters">
+        <select id="appsBankFilter"><option value="">Todos os bancos</option></select>
+      </div>
+    </div>
+    <div class="kpi-row" id="appsKpiRow" style="margin-bottom:14px;"></div>
+    <div id="appsStaleBanner"></div>
+    <div class="main-grid" style="grid-template-columns: 1fr 260px;">
+      <div class="table-wrap">
+        <table id="appsTable">
+          <thead>
+            <tr>
+              <th>Banco</th><th>Fundo</th><th>Conta</th><th>Competência</th>
+              <th class="num-col">Saldo inicial</th><th class="num-col">Aplicações</th>
+              <th class="num-col">Rendimentos</th><th class="num-col">Imposto</th>
+              <th class="num-col">Resgate</th><th class="num-col">Saldo final</th>
+              <th class="num-col">Rend. %</th><th>Vínculo</th><th>Garantia</th><th>Indexador</th>
+            </tr>
+          </thead>
+          <tbody id="appsTableBody"></tbody>
+        </table>
+      </div>
+      <aside class="card" style="margin:0;">
+        <div class="card-head"><h2>Saldo por banco</h2></div>
+        <div class="account-list" id="appsByBankList"></div>
+      </aside>
+    </div>
+    <div class="table-footer" id="appsFooter"></div>
+  </section>
+
+  <footer class="app-footer">
+    Painel privado do Plansul &middot; dados armazenados no Google Drive da empresa &middot; acesso restrito por login
+  </footer>
+</div>
+
+<!-- Upload / mapping wizard -->
+<div class="modal-overlay" id="uploadModal" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="wizardTitle">Carregar relatório</h2>
+      <p id="wizardSubtitle">Envie a planilha de fluxo de caixa exportada do seu sistema.</p>
+    </div>
+    <div class="steps" id="wizardSteps">
+      <div class="step-dot active" data-step="0"></div>
+      <div class="step-dot" data-step="1"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-dot" data-step="3"></div>
+    </div>
+    <div class="modal-body" id="wizardBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="wizardCancel">Cancelar</button>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="wizardBack" hidden>Voltar</button>
+      <button class="btn btn-primary" id="wizardNext" disabled>Avançar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Account modal -->
+<div class="modal-overlay" id="accountModal" hidden>
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head"><h2 id="accountModalTitle">Nova conta</h2></div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="accName">Nome da conta</label>
+        <input type="text" id="accName" placeholder="Ex.: Banco do Brasil — CC 12345-6">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="accKind">Tipo</label>
+          <select id="accKind">
+            <option value="conta">Conta corrente</option>
+            <option value="aplicacao">Aplicação / investimento</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="accBalance">Saldo atual (R$)</label>
+          <input type="number" id="accBalance" step="0.01" placeholder="0,00">
+        </div>
+      </div>
+      <div class="field">
+        <label for="accDate">Saldo referente a</label>
+        <input type="date" id="accDate">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger btn-ghost" id="accDelete" hidden>Excluir conta</button>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="accCancel">Cancelar</button>
+      <button class="btn btn-primary" id="accSave">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
