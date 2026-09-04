@@ -19,4 +19,5 @@
   document.write('<script src="tesouraria-v3.js"><\/script>');
   document.write('<script src="fluxo-v4.js"><\/script>');
   document.write('<script src="fluxo-v4-ui.js"><\/script>');
+  document.write('<script src="fluxo-v4-datefilters.js"><\/script>');
 })();
