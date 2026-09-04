@@ -3,20 +3,30 @@
 // Veja SETUP.md — passo "Implantar como Web App".
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbycMtivGfXTx4pKa3ltR29cY0owrV37fJG0Iy9MVlgg-dE99KuqOc7XgcFe0tjKHQ/exec';
 const MAX_PREVIEW_ROWS = 8;
-const RANGE_PRESETS = [
-  { id: '30_45',  label: '30d / +45d', past: 30,  future: 45  },
-  { id: '14_30',  label: '14d / +30d', past: 14,  future: 30  },
-  { id: '90_90',  label: '90d / +90d', past: 90,  future: 90  },
-  { id: 'all',    label: 'Tudo',       past: null, future: null },
-];
-let currentRangeId = '30_45';
+// Período do painel = competência (mês-calendário), como nos extratos bancários,
+// em vez de janelas de "N dias atrás / N dias à frente".
+const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const COMPETENCIA_MONTHS_BACK = 12; // quantos meses passados aparecem na lista, além do mês atual
+function monthId(y,m){ return `${y}-${pad2(m)}`; }
+function monthLabel(y,m){ return `${MONTH_NAMES[m-1]}/${y}`; }
+function currentMonthId(){ const d=new Date(); return monthId(d.getFullYear(), d.getMonth()+1); }
+function generateCompetencias(){
+  const now = new Date();
+  const list = [];
+  for(let offset=0; offset<=COMPETENCIA_MONTHS_BACK; offset++){
+    const d = new Date(now.getFullYear(), now.getMonth()-offset, 1);
+    list.push({ id: monthId(d.getFullYear(), d.getMonth()+1), label: monthLabel(d.getFullYear(), d.getMonth()+1) });
+  }
+  return list;
+}
+let currentRangeId = currentMonthId();
 
 const STATUS_LABEL = { realizado: 'Realizado', previsto: 'Previsto' };
 const TYPE_LABEL = { recebimento: 'Recebimento', pagamento: 'Pagamento' };
 
 // Bancos com layout de relatório próprio — cada um vira uma "fonte"
 // separada, com seu próprio mapeamento de colunas lembrado.
-const BANKS = ['Banco XP', 'BTG Pactual', 'Sicredi', 'CEF', 'Santander', 'Azimut', 'Mercado Pago'];
+const BANKS = ['Banco XP', 'BTG Pactual', 'Sicredi', 'CEF Itabuna', 'CEF Salvador', 'CEF Transitória', 'Santander', 'Azimut', 'Mercado Pago'];
 const OTHER_BANK = 'Outro';
 const HISTORY_KEEP = 200; // poda o histórico de uploads acima disso
 
@@ -25,6 +35,96 @@ const HISTORY_KEEP = 200; // poda o histórico de uploads acima disso
 // assistente, mas segue um fluxo próprio (ver ISSO no wizard mais abaixo).
 const APPLICATIONS_SOURCE = 'Análise Aplicações';
 const APPLICATIONS_STALE_DAYS = 60; // acima disso, o fundo é marcado como "desatualizado"
+const ACCOUNT_STALE_DAYS = 1; // saldo de conta com mais de N dias aparece como "Desatualizada" na Posição por banco
+const BANK_POSITION_VISIBLE = 6; // quantas contas aparecem antes do link "Ver todos os bancos"
+const DESC_MATRIX_PAGE_SIZE = 20; // quantos lançamentos cada página da matriz por descrição mostra
+
+/* ==== ÍCONES (SVG inline, sem biblioteca externa) ==== */
+const ICON_PATHS = {
+  bank: '<path d="M4 21h16"/><path d="M6 21v-9"/><path d="M10 21v-9"/><path d="M14 21v-9"/><path d="M18 21v-9"/><path d="M2 10l10-6 10 6"/>',
+  arrowDownLeft: '<path d="M17 7 7 17"/><path d="M17 17H7V7"/>',
+  arrowUpRight: '<path d="M7 17 17 7"/><path d="M7 7h10v10"/>',
+  trendingUp: '<path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  wallet: '<path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M16 12h2"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+  home: '<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/>',
+  history: '<path d="M14 3v5h5"/><path d="M6 3h8l5 5v13H6z"/><path d="M9 13h6M9 17h6"/>',
+  layers: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  chevronLeft: '<path d="m15 6-6 6 6 6"/>',
+  chevronRight: '<path d="m9 6 6 6-6 6"/>',
+  chevronsLeft: '<path d="m17 6-6 6 6 6"/><path d="m11 6-6 6 6 6"/>',
+  chevronsRight: '<path d="m7 6 6 6-6 6"/><path d="m13 6 6 6-6 6"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  percent: '<circle cx="7" cy="7" r="2.2"/><circle cx="17" cy="17" r="2.2"/><path d="M18 6 6 18"/>',
+};
+function svgIcon(name, size){
+  const s = size || 18;
+  const d = ICON_PATHS[name] || '';
+  return `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+}
+
+/* ==== SELOS (badges) de banco ====
+   Ideal seria usar o logo oficial de cada banco, mas este ambiente de nuvem
+   só tem acesso de rede a registros de pacotes (npm/pip) — não consegue
+   baixar imagens de sites externos (bloqueado pelo firewall do sandbox).
+   Onde há um ícone de marca disponível via biblioteca de pacotes (Simple
+   Icons, CC0, mantida para representar marcas/empresas) usamos o logo real;
+   nos demais bancos, ainda não localizados numa biblioteca de pacotes,
+   caímos de volta no monograma colorido — ver relatório de entrega. */
+const BANK_LOGO_SVG = {
+  // Mercado Pago — via Simple Icons (CC0), cor oficial da marca.
+  'mercado pago': {
+    color: '#00B1EA',
+    path: 'M11.115 16.479a.93.927 0 0 1-.939-.886c-.002-.042-.006-.155-.103-.155-.04 0-.074.023-.113.059-.112.103-.254.206-.46.206a.816.814 0 0 1-.305-.066c-.535-.214-.542-.578-.521-.725.006-.038.007-.08-.02-.11l-.032-.03h-.034c-.027 0-.055.012-.093.039a.788.786 0 0 1-.454.16.7.699 0 0 1-.253-.05c-.708-.27-.65-.928-.617-1.126.005-.041-.005-.072-.03-.092l-.05-.04-.047.043a.728.726 0 0 1-.505.203.73.728 0 0 1-.732-.725c0-.4.328-.722.732-.722.364 0 .675.27.721.63l.026.195.11-.165c.01-.018.307-.46.852-.46.102 0 .21.016.316.05.434.13.508.52.519.68.008.094.075.1.09.1.037 0 .064-.024.083-.045a.746.744 0 0 1 .54-.225c.128 0 .263.03.402.09.69.293.379 1.158.374 1.167-.058.144-.061.207-.005.244l.027.013h.02c.03 0 .07-.014.134-.035.093-.032.235-.08.367-.08a.944.942 0 0 1 .94.93.936.934 0 0 1-.94.928zm7.302-4.171c-1.138-.98-3.768-3.24-4.481-3.77-.406-.302-.685-.462-.928-.533a1.559 1.554 0 0 0-.456-.07c-.182 0-.376.032-.58.095-.46.145-.918.505-1.362.854l-.023.018c-.414.324-.84.66-1.164.73a1.986 1.98 0 0 1-.43.049c-.362 0-.687-.104-.81-.258-.02-.025-.007-.066.04-.125l.008-.008 1-1.067c.783-.774 1.525-1.506 3.23-1.545h.085c1.062 0 2.12.469 2.24.524a7.03 7.03 0 0 0 3.056.724c1.076 0 2.188-.263 3.354-.795a9.135 9.11 0 0 0-.405-.317c-1.025.44-2.003.66-2.946.66-.962 0-1.925-.229-2.858-.68-.05-.022-1.22-.567-2.44-.57-.032 0-.065 0-.096.002-1.434.033-2.24.536-2.782.976-.528.013-.982.138-1.388.25-.361.1-.673.186-.979.185-.125 0-.35-.01-.37-.012-.35-.01-2.115-.437-3.518-.962-.143.1-.28.203-.415.31 1.466.593 3.25 1.053 3.812 1.089.157.01.323.027.491.027.372 0 .744-.103 1.104-.203.213-.059.446-.123.692-.17l-.196.194-1.017 1.087c-.08.08-.254.294-.14.557a.705.703 0 0 0 .268.292c.243.162.677.27 1.08.271.152 0 .297-.015.43-.044.427-.095.874-.448 1.349-.82.377-.296.913-.672 1.323-.782a1.494 1.49 0 0 1 .37-.05.611.61 0 0 1 .095.005c.27.034.533.125 1.003.472.835.62 4.531 3.815 4.566 3.846.002.002.238.203.22.537-.007.186-.11.352-.294.466a.902.9 0 0 1-.484.15.804.802 0 0 1-.428-.124c-.014-.01-1.28-1.157-1.746-1.543-.074-.06-.146-.115-.22-.115a.122.122 0 0 0-.096.045c-.073.09.01.212.105.294l1.48 1.47c.002 0 .184.17.204.395.012.244-.106.447-.35.606a.957.955 0 0 1-.526.171.766.764 0 0 1-.42-.127l-.214-.206a21.035 20.978 0 0 0-1.08-1.009c-.072-.058-.148-.112-.221-.112a.127.127 0 0 0-.094.038c-.033.037-.056.103.028.212a.698.696 0 0 0 .075.083l1.078 1.198c.01.01.222.26.024.511l-.038.048a1.18 1.178 0 0 1-.1.096c-.184.15-.43.164-.527.164a.8.798 0 0 1-.147-.012c-.106-.018-.178-.048-.212-.089l-.013-.013c-.06-.06-.602-.609-1.054-.98-.059-.05-.133-.11-.21-.11a.128.128 0 0 0-.096.042c-.09.096.044.24.1.293l.92 1.003a.204.204 0 0 1-.033.062c-.033.044-.144.155-.479.196a.91.907 0 0 1-.122.007c-.345 0-.712-.164-.902-.264a1.343 1.34 0 0 0 .13-.576 1.368 1.365 0 0 0-1.42-1.357c.024-.342-.025-.99-.697-1.274a1.455 1.452 0 0 0-.575-.125c-.146 0-.287.025-.42.075a1.153 1.15 0 0 0-.671-.564 1.52 1.515 0 0 0-.494-.085c-.28 0-.537.08-.767.242a1.168 1.165 0 0 0-.903-.43 1.173 1.17 0 0 0-.82.335c-.287-.217-1.425-.93-4.467-1.613a17.39 17.344 0 0 1-.692-.189 4.822 4.82 0 0 0-.077.494l.67.157c3.108.682 4.136 1.391 4.309 1.525a1.145 1.142 0 0 0-.09.442 1.16 1.158 0 0 0 1.378 1.132c.096.467.406.821.879 1.003a1.165 1.162 0 0 0 .415.08c.09 0 .179-.012.266-.034.086.22.282.493.722.668a1.233 1.23 0 0 0 .457.094c.122 0 .241-.022.355-.063a1.373 1.37 0 0 0 1.269.841c.37.002.726-.147.985-.41.221.121.688.341 1.163.341.06 0 .118-.002.175-.01.47-.059.689-.24.789-.382a.571.57 0 0 0 .048-.078c.11.032.234.058.373.058.255 0 .501-.086.75-.265.244-.174.418-.424.444-.637v-.01c.083.017.167.026.251.026.265 0 .527-.082.773-.242.48-.31.562-.715.554-.98a1.28 1.279 0 0 0 .978-.194 1.04 1.04 0 0 0 .502-.808 1.088 1.085 0 0 0-.16-.653c.804-.342 2.636-1.003 4.795-1.483a4.734 4.721 0 0 0-.067-.492 27.742 27.667 0 0 0-5.049 1.62zm5.123-.763c0 4.027-5.166 7.293-11.537 7.293-6.372 0-11.538-3.266-11.538-7.293 0-4.028 5.165-7.293 11.539-7.293 6.371 0 11.537 3.265 11.537 7.293zm.46.004c0-4.272-5.374-7.755-12-7.755S.002 7.277.002 11.55L0 12.004c0 4.533 4.695 8.203 11.999 8.203 7.347 0 12-3.67 12-8.204z',
+  },
+};
+/* ==== SELOS (badges) de banco — iniciais coloridas, fallback para quando não há logo real disponível ==== */
+const BANK_BADGE_MAP = {
+  'banco xp': { bg:'#fdecd9', fg:'#a85717', initials:'XP' },
+  'xp': { bg:'#fdecd9', fg:'#a85717', initials:'XP' },
+  'btg pactual': { bg:'#e2e9fb', fg:'#1f3d8f', initials:'BTG' },
+  'sicredi': { bg:'#e1f3e4', fg:'#1f7a3d', initials:'SI' },
+  'cef': { bg:'#dde9fb', fg:'#0d4f96', initials:'CX' },
+  'caixa': { bg:'#dde9fb', fg:'#0d4f96', initials:'CX' },
+  'cef itabuna': { bg:'#dde9fb', fg:'#0d4f96', initials:'CX' },
+  'cef salvador': { bg:'#dde9fb', fg:'#0d4f96', initials:'CX' },
+  'cef transitória': { bg:'#dde9fb', fg:'#0d4f96', initials:'CX' },
+  'santander': { bg:'#fbe3e2', fg:'#b8202f', initials:'SA' },
+  'azimut': { bg:'#e6e6f2', fg:'#3d3d7a', initials:'AZ' },
+};
+const BANK_BADGE_PALETTE = [
+  { bg:'#e0ebef', fg:'#024766' }, { bg:'#dff3f0', fg:'#0f7d70' },
+  { bg:'#fbe3e2', fg:'#b23b3b' }, { bg:'#fdf1de', fg:'#9a6b12' },
+  { bg:'#efe7f7', fg:'#5b3e91' },
+];
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; } return Math.abs(h); }
+function bankInitials(name){
+  const words = String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(words.length>=2) return (words[0][0]+words[1][0]).toUpperCase();
+  return String(name||'??').slice(0,2).toUpperCase();
+}
+function bankBadge(name){
+  const key = String(name||'').trim().toLowerCase();
+  if(BANK_BADGE_MAP[key]) return BANK_BADGE_MAP[key];
+  const p = BANK_BADGE_PALETTE[hashStr(key) % BANK_BADGE_PALETTE.length];
+  return { bg:p.bg, fg:p.fg, initials:bankInitials(name) };
+}
+function bankBadgeHtml(name, size){
+  const key = String(name||'').trim().toLowerCase();
+  const s = size||30;
+  const logo = BANK_LOGO_SVG[key];
+  if(logo){
+    const iconSize = Math.round(s*0.56);
+    return `<span class="bank-badge bank-badge-logo" style="width:${s}px;height:${s}px;min-width:${s}px;background:#fff;border:1px solid var(--line-soft);color:${logo.color};">`
+      + `<svg viewBox="0 0 24 24" width="${iconSize}" height="${iconSize}" fill="currentColor" aria-hidden="true"><path d="${logo.path}"/></svg></span>`;
+  }
+  const b = bankBadge(name);
+  return `<span class="bank-badge" style="width:${s}px;height:${s}px;min-width:${s}px;background:${b.bg};color:${b.fg};font-size:${Math.max(9,Math.round(s*0.34))}px;">${escapeHtml(b.initials)}</span>`;
+}
 
 /* ==== UTILITIES ==== */
 function pad2(n){ return String(n).padStart(2,'0'); }
@@ -89,13 +189,15 @@ function generateExampleData(){
   const rnd = mulberry32(20260902);
   const today = todayISO();
   const accounts = [
-    { id:'ex_acc_1', name:'Banco XP',      kind:'conta',    balance:184320.55, asOfDate:today, order:0 },
-    { id:'ex_acc_2', name:'Sicredi',       kind:'conta',    balance:96140.10,  asOfDate:today, order:1 },
-    { id:'ex_acc_3', name:'CEF',           kind:'conta',    balance:41250.30,  asOfDate:today, order:2 },
-    { id:'ex_acc_4', name:'Santander',     kind:'conta',    balance:28870.00,  asOfDate:today, order:3 },
-    { id:'ex_acc_5', name:'Mercado Pago',  kind:'conta',    balance:12640.20,  asOfDate:today, order:4 },
-    { id:'ex_acc_6', name:'BTG Pactual',   kind:'aplicacao',balance:620000.00, asOfDate:today, order:5 },
-    { id:'ex_acc_7', name:'Azimut',        kind:'aplicacao',balance:185300.00, asOfDate:today, order:6 },
+    { id:'ex_acc_1', name:'Banco XP',        kind:'conta',    balance:184320.55, asOfDate:today, order:0 },
+    { id:'ex_acc_2', name:'Sicredi',         kind:'conta',    balance:96140.10,  asOfDate:today, order:1 },
+    { id:'ex_acc_3', name:'CEF Itabuna',     kind:'conta',    balance:22150.10,  asOfDate:today, order:2 },
+    { id:'ex_acc_3b',name:'CEF Salvador',    kind:'conta',    balance:14300.80,  asOfDate:today, order:3 },
+    { id:'ex_acc_3c',name:'CEF Transitória', kind:'conta',    balance:4799.40,   asOfDate:today, order:4 },
+    { id:'ex_acc_4', name:'Santander',       kind:'conta',    balance:28870.00,  asOfDate:today, order:5 },
+    { id:'ex_acc_5', name:'Mercado Pago',    kind:'conta',    balance:12640.20,  asOfDate:today, order:6 },
+    { id:'ex_acc_6', name:'BTG Pactual',     kind:'aplicacao',balance:620000.00, asOfDate:today, order:7 },
+    { id:'ex_acc_7', name:'Azimut',          kind:'aplicacao',balance:185300.00, asOfDate:today, order:8 },
   ];
   const inCats = [
     'Contrato — Estudo Ambiental BR-101',
@@ -114,7 +216,7 @@ function generateExampleData(){
   ];
   // Só as contas-corrente recebem extratos com lançamentos linha a linha —
   // as aplicações (BTG Pactual, Azimut) só têm saldo, atualizado manualmente.
-  const inAccounts = ['Banco XP','Sicredi','CEF','Santander','Mercado Pago'];
+  const inAccounts = ['Banco XP','Sicredi','CEF Itabuna','CEF Salvador','CEF Transitória','Santander','Mercado Pago'];
   const rows = [];
   const startISO = addDaysISO(today, -45);
   for(let i=0; i<=90; i++){
@@ -139,7 +241,7 @@ function generateExampleData(){
       rows.push({
         date, type:'pagamento', status,
         value: Math.round((46000 + rnd()*6000)*100)/100,
-        account: 'CEF',
+        account: 'CEF Itabuna',
         category: 'Folha de pagamento',
         description: dayOfMonth===5 ? 'Folha de pagamento — adiantamento' : 'Folha de pagamento — mensal',
       });
@@ -208,6 +310,18 @@ function generateExampleData(){
     filename:'extrato_santander_layout_antigo.xlsx',
     status:'erro', rowCount:0, errorMessage:'Coluna de data não encontrada no arquivo enviado.',
     at: addDaysISO(today,-11).concat('T14:32:00.000Z'),
+  });
+  // Exemplo de envio concluído mas com inconsistências (mesmo formato usado
+  // pelos leitores automáticos reais) — mostra como a tela "Verificação de
+  // Importação" exibe um aviso sem bloquear o carregamento.
+  history.push({
+    id:'ex_hist_aviso', bank:'CEF Salvador',
+    filename:'extrato_cef_salvador_exemplo.xlsx',
+    status:'concluido', rowCount:84,
+    errorMessage: JSON.stringify({ issues: buildParseIssues({
+      errorCount: 0, unmappedCodes: new Map([['TAR NOVA', 2]]),
+    }) }),
+    at: addDaysISO(today,-3).concat('T09:40:00.000Z'),
   });
   history.sort((a,b)=> a.at < b.at ? 1 : -1);
 
@@ -370,6 +484,392 @@ function normalizeKeyText(s){
 function numOrZero(v){
   const n = parseNumberCell(v);
   return isNaN(n) ? 0 : n;
+}
+
+/* ==== LEITURA AUTOMÁTICA DE EXTRATOS POR BANCO ====
+ * Cada banco exporta o extrato sempre no mesmo layout fixo — por isso, para
+ * estes bancos, pulamos o assistente genérico de mapeamento de colunas: o
+ * usuário só escolhe o banco e o arquivo, e o painel já sabe onde está cada
+ * coluna. Mapeamento levantado a partir de extratos reais (mai–ago/2026) de
+ * cada banco. Se o banco mudar o layout do extrato no futuro, o parser
+ * falha de forma controlada (mensagem de erro), em vez de ler dado errado —
+ * nesse caso o mapeamento aqui precisa ser atualizado. */
+
+function findExactHeaderRow(matrix, requiredCols, maxScan){
+  const limit = Math.min(matrix.length, maxScan||25);
+  for(let r=0;r<limit;r++){
+    const row = matrix[r]||[];
+    if(requiredCols.every(rc => rc.re.test(normalizeTypeText(row[rc.index])))) return r;
+  }
+  return -1;
+}
+
+// Nomes de mês em português (sem acento) para datas por extenso, ex.:
+// "Segunda, 31 de agosto de 2026" (Santander).
+const MONTH_NAMES_NORM = MONTH_NAMES.map(m=>normalizeTypeText(m));
+function parsePtLongDate(s){
+  if(!s) return null;
+  const norm = normalizeTypeText(s);
+  const m = norm.match(/(\d{1,2})\s+de\s+([a-z]+)\s+de\s+(\d{4})/);
+  if(!m) return null;
+  const day = +m[1], monName = m[2], year = +m[3];
+  const monIdx = MONTH_NAMES_NORM.indexOf(monName);
+  if(monIdx<0) return null;
+  return isoFromParts(year, monIdx+1, day);
+}
+// CEF exporta a data como número AAAAMMDD (ex.: 20260803).
+function parseCEFDateInt(v){
+  const s = String(typeof v==='number' ? Math.trunc(v) : v).trim();
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(!m) return null;
+  return isoFromParts(+m[1], +m[2], +m[3]);
+}
+
+function toTitleCasePt(s){
+  const small = new Set(['de','da','do','das','dos','e','em','para','com','a','o']);
+  return String(s||'').trim().toLowerCase().split(/\s+/).map((w,i)=>{
+    if(!w) return w;
+    if(i>0 && small.has(w)) return w;
+    return w[0].toUpperCase()+w.slice(1);
+  }).join(' ');
+}
+
+/* Regras de consolidação de descrição: descrições brutas de extrato costumam
+ * vir com um sufixo variável (CPF/CNPJ do favorecido + nome truncado) que
+ * torna cada lançamento único mesmo quando são o mesmo tipo de movimento —
+ * ex.: "RECEBIMENTO PIX 27215016587 EVA CARDOSO DE OLIVE". Para a
+ * diretoria, o que importa é o tipo do lançamento — por isso normalizamos a
+ * descrição para um rótulo consolidado ("Recebimento PIX") e guardamos o
+ * complemento (nome/CPF-CNPJ) na coluna Categoria, que continua
+ * pesquisável (campo de busca inclui descrição + categoria + conta). A
+ * ordem importa: regras mais específicas primeiro, catch-alls por último. */
+const DESC_CONSOLIDATION_RULES = [
+  { re: /^RECEBIMENTO\s+PIX\b/i, label: 'Recebimento PIX' },
+  { re: /^PIX\s+RECEBIDO\b/i, label: 'Recebimento PIX' },
+  { re: /^CRED\.?\s*PIX\b/i, label: 'Recebimento PIX' },
+  { re: /^PAGAMENTO\s+PIX\b/i, label: 'Pagamento PIX' },
+  { re: /^PIX\s+ENVIADO\b/i, label: 'Pagamento PIX' },
+  { re: /^TARIFA\s+AVULSA\s+ENVIO\s+PIX\b/i, label: 'Tarifa — envio de PIX' },
+  { re: /^TRANSF(?:ERENCIA)?\s+ENTRE\s+CONTAS\b/i, label: 'Transferência entre contas' },
+  { re: /^DOC\s*\/\s*TED\s+INTERNET\s+PJ\b/i, label: 'Tarifa — DOC/TED' },
+  { re: /^DEBITO\s+TED\s*\/\s*IB\b/i, label: 'Transferência enviada (TED)' },
+  { re: /^ENVIO\s+TED\b/i, label: 'Transferência enviada (TED)' },
+  { re: /^ENVIO\s+TEV\b/i, label: 'Transferência enviada (TEV)' },
+  { re: /^CRED\.?\s*TED\b/i, label: 'Recebimento (TED)' },
+  { re: /^CRED\.?\s*TEV\b/i, label: 'Recebimento (TEV)' },
+  { re: /^COB\s*TED\b/i, label: 'Cobrança (TED)' },
+  { re: /^TED\b/i, label: 'Transferência (TED)' },
+  { re: /^DEP(?:OSITO)?\s+DINHEIRO\b/i, label: 'Depósito em dinheiro' },
+  { re: /^DEBITO\s+CONVENIOS\b/i, label: 'Débito de convênio' },
+  { re: /^DEBITO\s+ARRECADACAO\b/i, label: 'Débito de arrecadação' },
+  { re: /^LIQUIDACAO\s+DE\s+PARCELA\b/i, label: 'Liquidação de parcela' },
+  { re: /^BLOQUEIO\s+JUDICIAL\b/i, label: 'Bloqueio judicial de valor' },
+  { re: /^CRED\.?\s*DESBLOQUEIO\s+JUDICIAL\b/i, label: 'Desbloqueio judicial de valor' },
+  { re: /^INTEGR\.?\s*CAPITAL\s+SUBSCRITO\b/i, label: 'Integralização de capital' },
+  { re: /^LIQUIDACAO\s+BOLETO\b/i, label: 'Pagamento de boleto' },
+  { re: /^PAG\s+BOLETO\b/i, label: 'Pagamento de boleto' },
+  { re: /^TARIFA\s+PAGAMENTO\s+BOLETO\s+VIA\s+QRCODE\b/i, label: 'Tarifa — pagamento de boleto (QR Code)' },
+  { re: /^PAGAMENTO\s+CARTAO\s+DE\s+CREDITO\b/i, label: 'Pagamento de fatura de cartão' },
+  { re: /^PAGAMENTO\s+CARTAO\s+DE\s+DEBITO\b/i, label: 'Compra no cartão de débito' },
+  { re: /^DEB\.?\s*CTA\.?\s*FATURA\b/i, label: 'Pagamento de fatura (débito em conta)' },
+  { re: /^APLICACAO\b/i, label: 'Aplicação financeira' },
+  { re: /^RESGATE\b/i, label: 'Resgate de aplicação' },
+  { re: /^CONSORCIO\b/i, label: 'Consórcio' },
+  { re: /^PAG\.?\s*FONE\b/i, label: 'Pagamento de telefone' },
+  { re: /^PAG\s+AGUA\b/i, label: 'Pagamento de água' },
+  { re: /^PG\s*LUZ\s*\/?\s*GAS\b/i, label: 'Pagamento de luz/gás' },
+  { re: /^PG\s*ORG\s*GOV\b/i, label: 'Pagamento a órgão governamental' },
+  { re: /^PREST\.?\s*EMPR\b/i, label: 'Prestação de empréstimo' },
+  { re: /^DB\s*T\s*CESTA\b/i, label: 'Tarifa — cesta de serviços' },
+  { re: /^TAR\.?\s*MAN\s*CC\b/i, label: 'Tarifa — manutenção de conta' },
+  { re: /^TARIFA\s+MENSALIDADE\s+PACOTE\s+SERVICOS\b/i, label: 'Tarifa — mensalidade de pacote de serviços' },
+  { re: /^TAR\s*LIQ\s*COB/i, label: 'Tarifa — liquidação de cobrança' },
+  { re: /^TAR\s*BAIXA\s*COB/i, label: 'Tarifa — baixa de cobrança' },
+  { re: /^COB\s*MAN/i, label: 'Tarifa — manutenção de cobrança' },
+  { re: /^COB\s*BX/i, label: 'Tarifa — baixa de cobrança' },
+  { re: /^COB\s*COMPE\b/i, label: 'Cobrança compensada' },
+  { re: /^COB\s*LOT/i, label: 'Cobrança — lotérica' },
+  { re: /^COB\s*INTERN/i, label: 'Cobrança — internet banking' },
+  { re: /^DEB\s*COB\s*AT/i, label: 'Débito de cobrança em atraso' },
+  { re: /^CR\s*COB\b/i, label: 'Cobrança compensada' },
+  { re: /^BLQ\s*VLR\s*JD\b/i, label: 'Bloqueio judicial de valor' },
+  { re: /^DBLQ\s*VL\s*JD\b/i, label: 'Desbloqueio judicial de valor' },
+  { re: /^SAQUE\b/i, label: 'Saque' },
+  { re: /^DEBITO\s+CHEQUE\b/i, label: 'Cheque compensado' },
+  { re: /^CHEQUE\b/i, label: 'Cheque' },
+  { re: /^TAR(?:IFA)?\b/i, label: 'Tarifa bancária' },
+  { re: /^COB\b/i, label: 'Cobrança' },
+];
+// O terceiro campo, "matched", indica se uma regra de DESC_CONSOLIDATION_RULES
+// realmente reconheceu a descrição (true) ou se caímos num dos fallbacks
+// genéricos (false) — usado pela tela de Verificação de Importação para
+// contar quantos lançamentos de um extrato ficaram com o texto original do
+// banco em vez de um rótulo consolidado.
+function consolidateDescription(raw){
+  const s = String(raw||'').trim();
+  if(!s) return { label:'Lançamento', detail:'', matched:true };
+  for(const rule of DESC_CONSOLIDATION_RULES){
+    if(rule.re.test(s)){
+      const rest = s.replace(rule.re,'').trim().replace(/^\d{11,14}\s*/,'').trim();
+      return { label: rule.label, detail: rest, matched:true };
+    }
+  }
+  // Nenhuma regra bateu: se ainda assim houver um CPF/CNPJ embutido no meio
+  // do texto, separamos o prefixo (vira o rótulo) do CPF/CNPJ+nome (vira o
+  // complemento) — rede de segurança para tipos de lançamento não previstos
+  // nas regras acima, para não deixar número de documento solto no rótulo.
+  const m = s.match(/^(.*?)\s+(\d{11,14})\s+(.+)$/);
+  if(m) return { label: toTitleCasePt(m[1]), detail: m[3].trim(), matched:false };
+  return { label: toTitleCasePt(s), detail:'', matched:false };
+}
+
+// Monta a lista de "issues" (inconsistências) encontradas ao ler
+// automaticamente um extrato — alimenta a tela "Verificação de Importação"
+// (log de inconsistências + sugestão do que fazer para resolver, visível só
+// para o financeiro). Cada issue: { code, message, count, suggestion }.
+function buildParseIssues({ errorCount, fallbackCount, fallbackSamples, unmappedCodes }){
+  const issues = [];
+  if(errorCount>0){
+    issues.push({
+      code:'linhas_ignoradas',
+      message: `${errorCount} linha${errorCount===1?'':'s'} do arquivo não p${errorCount===1?'ô':'u'}de${errorCount===1?'':'ram'} ser lida${errorCount===1?'':'s'} (data ou valor em formato inesperado) e ${errorCount===1?'foi':'foram'} ignorada${errorCount===1?'':'s'}.`,
+      count: errorCount,
+      suggestion: 'Confira se o arquivo é o extrato original exportado direto do banco, sem edições manuais (linhas ou colunas movidas, por exemplo). Se o problema persistir, envie o arquivo para revisão.',
+    });
+  }
+  if(fallbackCount>0){
+    const sample = (fallbackSamples||[]).slice(0,3).map(s=>`"${s}"`).join(', ');
+    issues.push({
+      code:'descricao_nao_consolidada',
+      message: `${fallbackCount} lançamento${fallbackCount===1?'':'s'} com descrição não reconhecida por nenhuma regra de consolidação${sample?` (ex.: ${sample})`:''} — ${fallbackCount===1?'ficou':'ficaram'} com o texto original do banco.`,
+      count: fallbackCount,
+      suggestion: 'Não impede o uso do painel — o lançamento aparece normalmente, só não foi resumido a um rótulo padrão. Se esse tipo de descrição for frequente, avise para adicionarmos uma regra de consolidação para ela.',
+    });
+  }
+  if(unmappedCodes && unmappedCodes.size>0){
+    const codes = [...unmappedCodes.keys()].slice(0,5).join(', ');
+    const total = [...unmappedCodes.values()].reduce((a,b)=>a+b,0);
+    issues.push({
+      code:'codigo_cef_nao_mapeado',
+      message: `${total} lançamento${total===1?'':'s'} com código de histórico da Caixa ainda não mapeado (${codes}) — exibido${total===1?'':'s'} com o código original em vez de uma descrição.`,
+      count: total,
+      suggestion: 'Confira o significado do código no extrato original (ou com o gerente da conta) e avise para adicionarmos ao dicionário de tradução da Caixa.',
+    });
+  }
+  return issues;
+}
+
+// Códigos do "Historico" da CEF — abreviações fixas do sistema bancário,
+// sem nome de favorecido embutido. Mapeamento levantado a partir dos
+// extratos reais das 3 contas (mai–ago/2026). Código não mapeado cai no
+// nome original (title case), para nunca esconder um lançamento.
+const CEF_HISTORICO_MAP = {
+  'PAG BOLETO': 'Pagamento de boleto',
+  'CONSORCIO': 'Consórcio',
+  'PAG FONE': 'Pagamento de telefone',
+  'PAG AGUA': 'Pagamento de água',
+  'PG LUZ/GAS': 'Pagamento de luz/gás',
+  'PG ORG GOV': 'Pagamento a órgão governamental',
+  'ENVIO TEV': 'Transferência enviada (TEV)',
+  'ENVIO TED': 'Transferência enviada (TED)',
+  'CRED TEV': 'Recebimento (TEV)',
+  'CRED TED': 'Recebimento (TED)',
+  'CRED PIX': 'Recebimento PIX',
+  'COB TED': 'Cobrança (TED)',
+  'COB COMPE': 'Cobrança compensada',
+  'COB MAN061': 'Tarifa — manutenção de cobrança',
+  'COB BX 063': 'Tarifa — baixa de cobrança',
+  'COB LOT DH': 'Cobrança — lotérica (dinheiro)',
+  'COB LOTERI': 'Tarifa — cobrança lotérica',
+  'COB INTERN': 'Cobrança — internet banking',
+  'DEB COB AT': 'Débito de cobrança em atraso',
+  'TAR TEV AG': 'Tarifa — TEV',
+  'TAR MAN CC': 'Tarifa — manutenção de conta',
+  'TAR REN CA': 'Tarifa — renovação cadastral',
+  'DB T CESTA': 'Tarifa — cesta de serviços',
+  'PREST EMPR': 'Prestação de empréstimo',
+  'BLQ VLR JD': 'Bloqueio judicial de valor',
+  'DBLQ VL JD': 'Desbloqueio judicial de valor',
+  'DQ SOL DB': 'Solicitação de débito',
+  'SOL DB BLV': 'Solicitação de débito (bloqueio de valor)',
+  'BQ SOL CR': 'Bloqueio de solicitação de crédito',
+  'SOL CR BLQ': 'Solicitação de crédito bloqueado',
+  'DQ TR VLR': 'Transferência de valor',
+  'TR VLR OU': 'Transferência de valor (outra conta)',
+};
+
+/* ---- Sicredi: aba única "Extrato". Cabeçalho fixo Data/Descrição/
+ * Documento/Valor (R$)/Saldo (R$); logo abaixo, uma linha "Saldo Anterior".
+ * O Valor já vem com sinal (positivo=crédito, negativo=débito). Depois da
+ * lista de lançamentos realizados, o arquivo ainda traz um bloco
+ * "Lançamentos Futuros (Próximos 30 dias)" no mesmo formato (sem
+ * Documento/Saldo) — lemos como previsto. */
+function parseSicrediWorkbook(wb, accountName){
+  const sheetName = wb.SheetNames.find(n=>/extrato/i.test(n)) || wb.SheetNames[0];
+  // sheetToMatrix usa blankrows:false — linhas totalmente em branco são
+  // removidas pelo próprio SheetJS, então não existe "linha vazia" no
+  // resultado para marcar o fim da lista de lançamentos. Em vez disso,
+  // procuramos o marcador de texto "Saldo da Conta em ..." que a Sicredi
+  // sempre imprime logo depois do último lançamento realizado.
+  const matrix = sheetToMatrix(wb, sheetName);
+  const headerIdx = findExactHeaderRow(matrix, [
+    {index:0, re:/^data$/}, {index:1, re:/descri/}, {index:4, re:/saldo/},
+  ]);
+  if(headerIdx<0){ const e = new Error('sicredi-header-not-found'); throw e; }
+  let endIdx = matrix.length;
+  for(let r=headerIdx+1; r<matrix.length; r++){
+    const c0 = normalizeTypeText((matrix[r]||[])[0]);
+    if(/^saldo da conta/.test(c0)){ endIdx = r; break; }
+  }
+  const rows = [];
+  let errorCount = 0;
+  let fallbackCount = 0; const fallbackSamples = [];
+  let lastBalance = null, lastDate = null;
+  for(let r=headerIdx+1; r<endIdx; r++){
+    const row = matrix[r];
+    if(!row) continue;
+    const desc = String(row[1]||'').trim();
+    const dateRaw = row[0];
+    const dateEmpty = (dateRaw===null||dateRaw===undefined||dateRaw==='');
+    if(dateEmpty && /saldo anterior/i.test(desc)){ continue; }
+    const date = parseDateCell(dateRaw);
+    if(!date){ if(desc) errorCount++; continue; }
+    const valor = parseNumberCell(row[3]);
+    if(isNaN(valor) || valor===0) continue;
+    const { label, detail, matched } = consolidateDescription(desc);
+    if(!matched){ fallbackCount++; if(fallbackSamples.length<5) fallbackSamples.push(desc); }
+    const saldo = parseNumberCell(row[4]);
+    if(!isNaN(saldo)){ lastBalance = saldo; lastDate = date; }
+    rows.push({
+      date, type: valor>0 ? 'recebimento':'pagamento', status:'realizado',
+      value: Math.abs(valor), account: accountName, category: detail || label,
+      description: label,
+    });
+  }
+  // bloco opcional "Lançamentos Futuros" (mesmas colunas Data/Descrição/
+  // Valor, sem Documento/Saldo) — vem depois do marcador de saldo.
+  let futIdx = -1;
+  for(let i=endIdx;i<matrix.length;i++){
+    const c0 = normalizeTypeText((matrix[i]||[])[0]);
+    if(/lancamentos futuros/.test(c0)){ futIdx = i; break; }
+  }
+  if(futIdx>=0){
+    const futHeader = findExactHeaderRow(matrix.slice(futIdx), [{index:0,re:/^data$/},{index:1,re:/descri/}], 5);
+    const start = futIdx + (futHeader>=0?futHeader:1) + 1;
+    for(let i=start;i<matrix.length;i++){
+      const row = matrix[i];
+      if(!row) break;
+      const desc = String(row[1]||'').trim();
+      const date = parseDateCell(row[0]);
+      if(!date || !desc) break;
+      const valor = parseNumberCell(row[2]);
+      if(isNaN(valor) || valor===0) continue;
+      const { label, detail, matched } = consolidateDescription(desc);
+      if(!matched){ fallbackCount++; if(fallbackSamples.length<5) fallbackSamples.push(desc); }
+      rows.push({
+        date, type: valor>0?'recebimento':'pagamento', status:'previsto',
+        value: Math.abs(valor), account: accountName, category: detail || label,
+        description: label,
+      });
+    }
+  }
+  const issues = buildParseIssues({ errorCount, fallbackCount, fallbackSamples });
+  return { rows, errorCount, meta: { lastBalance, lastDate }, issues };
+}
+
+/* ---- Santander: aba única (nome do arquivo/aba variável). Título + linha
+ * do titular + período nas primeiras linhas; cabeçalho fixo Data/Descrição/
+ * Crédito (R$)/Débito (R$); data por extenso ("Segunda, 31 de agosto de
+ * 2026"); última linha é um total (Descrição="TOTAL"), que ignoramos. Não
+ * traz saldo por lançamento. */
+function parseSantanderWorkbook(wb, accountName){
+  const sheetName = wb.SheetNames[0];
+  const matrix = sheetToMatrix(wb, sheetName);
+  const headerIdx = findExactHeaderRow(matrix, [
+    {index:0, re:/^data$/}, {index:1, re:/descri/},
+  ]);
+  if(headerIdx<0){ const e = new Error('santander-header-not-found'); throw e; }
+  const rows = [];
+  let errorCount = 0;
+  let fallbackCount = 0; const fallbackSamples = [];
+  for(let r=headerIdx+1; r<matrix.length; r++){
+    const row = matrix[r];
+    if(!row) continue;
+    const desc = String(row[1]||'').trim();
+    if(desc.toUpperCase()==='TOTAL') continue;
+    if(!desc && (row[2]==null||row[2]==='') && (row[3]==null||row[3]==='')) continue;
+    const date = parsePtLongDate(row[0]);
+    if(!date){ if(desc) errorCount++; continue; }
+    const { label, detail, matched } = consolidateDescription(desc);
+    if(!matched){ fallbackCount++; if(fallbackSamples.length<5) fallbackSamples.push(desc); }
+    const credito = numOrZero(row[2]);
+    const debito = numOrZero(row[3]);
+    if(credito>0){
+      rows.push({ date, type:'recebimento', status:'realizado', value:credito, account:accountName, category: detail||label, description: label });
+    }
+    if(debito>0){
+      rows.push({ date, type:'pagamento', status:'realizado', value:debito, account:accountName, category: detail||label, description: label });
+    }
+    if(credito<=0 && debito<=0) errorCount++;
+  }
+  const issues = buildParseIssues({ errorCount, fallbackCount, fallbackSamples });
+  return { rows, errorCount, meta:{}, issues };
+}
+
+/* ---- CEF (Caixa): sem cabeçalho de texto — a primeira linha já é o
+ * cabeçalho de colunas fixo Conta/Data_Mov/Nr_Doc/Historico/Valor/
+ * Deb_Cred. Data em AAAAMMDD, Valor em texto com ponto decimal, Deb_Cred =
+ * "D"/"C". Historico é um código curto (sem nome de favorecido embutido) —
+ * traduzido via CEF_HISTORICO_MAP. As 3 contas da Caixa (Itabuna/Salvador/
+ * Transitória) usam exatamente este mesmo layout — accountName é passado
+ * pelo chamador para identificar qual delas. */
+function parseCEFWorkbook(wb, accountName){
+  const sheetName = wb.SheetNames[0];
+  const matrix = sheetToMatrix(wb, sheetName);
+  const headerIdx = findExactHeaderRow(matrix, [
+    {index:1, re:/data.?mov/}, {index:3, re:/historico/}, {index:4, re:/valor/},
+  ], 5);
+  if(headerIdx<0){ const e = new Error('cef-header-not-found'); throw e; }
+  const rows = [];
+  let errorCount = 0;
+  const unmappedCodes = new Map();
+  for(let r=headerIdx+1; r<matrix.length; r++){
+    const row = matrix[r];
+    if(!row) continue;
+    const date = parseCEFDateInt(row[1]);
+    if(!date){ if(row[3]) errorCount++; continue; }
+    const valor = parseNumberCell(row[4]);
+    if(isNaN(valor) || valor===0) continue;
+    const dc = String(row[5]||'').trim().toUpperCase();
+    if(dc!=='C' && dc!=='D'){ errorCount++; continue; }
+    const rawHist = String(row[3]||'').trim();
+    const histKey = rawHist.toUpperCase();
+    const mapped = CEF_HISTORICO_MAP[histKey];
+    const label = mapped || toTitleCasePt(rawHist);
+    if(!mapped && rawHist) unmappedCodes.set(histKey, (unmappedCodes.get(histKey)||0)+1);
+    rows.push({
+      date, type: dc==='C'?'recebimento':'pagamento', status:'realizado',
+      value: Math.abs(valor), account: accountName, category: rawHist, description: label,
+    });
+  }
+  const issues = buildParseIssues({ errorCount, unmappedCodes });
+  return { rows, errorCount, meta:{}, issues };
+}
+
+// Registro dos bancos com leitura automática — ao escolher um destes no
+// assistente de carregamento, pulamos direto para a prévia (sem os passos
+// de "formato dos valores" e "mapear colunas"). As 3 contas CEF (Itabuna,
+// Salvador, Transitória) usam o mesmo layout de extrato — o mesmo parser
+// (parseCEFWorkbook) atende as 3, cada uma como uma fonte separada.
+const BANK_PARSERS = {
+  'Sicredi': parseSicrediWorkbook,
+  'Santander': parseSantanderWorkbook,
+  'CEF Itabuna': parseCEFWorkbook,
+  'CEF Salvador': parseCEFWorkbook,
+  'CEF Transitória': parseCEFWorkbook,
+};
+function knownBankParser(){
+  return (wz && BANK_PARSERS[wz.sourceName]) || null;
 }
 
 /* ==== APLICA\u00c7\u00d5ES (relat\u00f3rio "Analise Aplica\u00e7\u00f5es" \u2014 CONSOLIDADO + Informa\u00e7\u00f5es Fundos) ====
@@ -536,6 +1036,10 @@ const state = {
   filters: { search:'', tipo:'', status:'', conta:'' },
   historyBankFilter: '',
   applicationsBankFilter: '',
+  verificationBankFilter: '',
+  descMatrixPage: 1,                 // página atual (1-based) da matriz por descrição, em lançamentos
+  descMatrixPageSize: DESC_MATRIX_PAGE_SIZE, // quantos lançamentos cada página mostra
+  bankPositionExpanded: false,      // "Ver todos os bancos" — mostra todas as contas, não só as primeiras
 };
 
 let session = null;      // { token, username, role, nome } depois do login
@@ -594,6 +1098,7 @@ const Api = {
     return session;
   },
   getData(){ return callApi('getData', {}); },
+  logout(){ return callApi('logout', {}); },
   saveAccount(account){ return callApi('saveAccount', { account }); },
   deleteAccount(id){ return callApi('deleteAccount', { id }); },
   saveImport(payload){ return callApi('saveImport', payload); },
@@ -617,6 +1122,8 @@ function applyEditGating(){
   if(nameEl) nameEl.textContent = session ? (session.nome || session.username) : '';
   const roleEl = document.getElementById('userRole');
   if(roleEl) roleEl.textContent = state.canEdit ? 'Financeiro' : 'Diretoria · somente leitura';
+  const avatarEl = document.getElementById('avatarCircle');
+  if(avatarEl) avatarEl.textContent = bankInitials(session ? (session.nome || session.username) : '?');
 }
 
 async function loadData(opts){
@@ -629,7 +1136,7 @@ async function loadData(opts){
     state.history = res.history || [];
     state.applications = res.applications || null;
     state.usingDemo = state.accounts.length===0 && state.sources.length===0;
-    setSync('on', 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}));
+    setSync('on', 'Atualizado ' + friendlyUpdatedAt(new Date()));
     renderAll();
     if(document.getElementById('historyView') && !document.getElementById('historyView').hidden) renderHistory();
     if(document.getElementById('applicationsView') && !document.getElementById('applicationsView').hidden) renderApplications();
@@ -649,6 +1156,13 @@ function stopPolling(){
   pollTimer = null;
 }
 
+function friendlyUpdatedAt(date){
+  const time = date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  const iso = date.toISOString().slice(0,10);
+  const diff = daysBetweenISO(iso, todayISO());
+  const dayLabel = diff===0 ? 'hoje' : diff===1 ? 'ontem' : date.toLocaleDateString('pt-BR');
+  return `${dayLabel}, ${time}`;
+}
 function setSync(kind, label){
   const dot = document.getElementById('syncDot');
   const lbl = document.getElementById('syncLabel');
@@ -684,7 +1198,19 @@ async function deleteAccount(id){
 // no Drive — carregar um novo arquivo de um banco nunca afeta os outros.
 async function saveImportForSource({ sourceId, sourceName, filename, sheetName, mapping, headerSignature, rows, fileBase64, fileMime }){
   try{
-    await Api.saveImport({ sourceId, sourceName, filename, sheetName, mapping, headerSignature, rows, fileBase64, fileMime });
+    const accounts = activeData().accounts || [];
+    const normalizedRows = (rows || []).map((row, index)=>{
+      const accountName = row.account || sourceName || '';
+      const accountId = row.accountId || resolveAccountId(accountName, accounts) || resolveAccountId(sourceName, accounts);
+      return {
+        ...row,
+        id: row.id || `${sourceId}_${row.date || 'semdata'}_${index+1}`,
+        sourceId,
+        account: accountName,
+        accountId,
+      };
+    });
+    await Api.saveImport({ sourceId, sourceName, filename, sheetName, mapping, headerSignature, rows: normalizedRows, fileBase64, fileMime });
     await loadData();
   }catch(err){ guardSession(err); throw err; }
 }
@@ -780,7 +1306,8 @@ function wireLoginForm(){
     doLogin(username, password);
   });
   const logoutBtn = document.getElementById('btnLogout');
-  if(logoutBtn) logoutBtn.onclick = ()=>{
+  if(logoutBtn) logoutBtn.onclick = async ()=>{
+    try{ await Api.logout(); }catch(e){ /* logout local continua mesmo sem rede */ }
     clearSession();
     showLoginScreen();
   };
@@ -798,44 +1325,127 @@ function activeData(){
 }
 
 function getRangeBounds(rangeId, transactions){
-  const today = todayISO();
-  const preset = RANGE_PRESETS.find(r=>r.id===rangeId) || RANGE_PRESETS[0];
-  if(preset.past===null){
+  if(rangeId === 'all'){
+    const today = todayISO();
     let min = today, max = today;
     transactions.forEach(t=>{ if(t.date<min) min=t.date; if(t.date>max) max=t.date; });
     return { start:min, end:max };
   }
-  return { start: addDaysISO(today,-preset.past), end: addDaysISO(today, preset.future) };
+  const m = /^(\d{4})-(\d{2})$/.exec(rangeId);
+  if(m){
+    const y = +m[1], mo = +m[2];
+    const lastDay = new Date(y, mo, 0).getDate(); // dia 0 do mês seguinte = último dia deste mês
+    return { start: isoFromParts(y, mo, 1), end: isoFromParts(y, mo, lastDay) };
+  }
+  return getRangeBounds(currentMonthId(), transactions); // fallback: mês atual
 }
 
-function computeKPIs(accounts, transactions){
+function normalizeAccountMatch(value){
+  return normalizeKeyText(value || '');
+}
+function resolveAccountId(accountValue, accounts){
+  const raw = String(accountValue || '').trim();
+  if(!raw) return '';
+  const byId = accounts.find(a=>String(a.id)===raw);
+  if(byId) return byId.id;
+  const key = normalizeAccountMatch(raw);
+  const byName = accounts.find(a=>normalizeAccountMatch(a.name)===key);
+  return byName ? byName.id : '';
+}
+function transactionAccountId(t, accounts){
+  return t.accountId || resolveAccountId(t.account, accounts);
+}
+function transactionMatchesAccount(t, account, accounts){
+  const tid = transactionAccountId(t, accounts);
+  if(tid) return String(tid)===String(account.id);
+  return normalizeAccountMatch(t.account)===normalizeAccountMatch(account.name);
+}
+
+function computeKPIs(accounts, transactions, startISO, endISO, projectionSeries){
   const today = todayISO();
   const bankBalance = accounts.filter(a=>a.kind==='conta').reduce((s,a)=>s+(Number(a.balance)||0),0);
-  const investBalance = accounts.filter(a=>a.kind==='aplicacao').reduce((s,a)=>s+(Number(a.balance)||0),0);
-  const totalBalance = bankBalance + investBalance;
+  const accountInvestBalance = accounts.filter(a=>a.kind==='aplicacao').reduce((s,a)=>s+(Number(a.balance)||0),0);
+  const appData = activeData().applications;
+  const investBalance = appData && Number.isFinite(Number(appData.totalBalance))
+    ? Number(appData.totalBalance)
+    : accountInvestBalance;
 
   let receivableForecast=0, payableForecast=0, overdueReceivable=0, overduePayable=0;
   let receivedRealizedTotal=0, paidRealizedTotal=0;
   transactions.forEach(t=>{
+    if(t.date < startISO || t.date > endISO) return;
+    const value = Number(t.value)||0;
     if(t.status==='previsto'){
       if(t.type==='recebimento'){
-        receivableForecast += t.value;
-        if(t.date < today) overdueReceivable += t.value;
+        receivableForecast += value;
+        if(t.date < today) overdueReceivable += value;
       } else {
-        payableForecast += t.value;
-        if(t.date < today) overduePayable += t.value;
+        payableForecast += value;
+        if(t.date < today) overduePayable += value;
       }
     } else {
-      if(t.type==='recebimento') receivedRealizedTotal += t.value;
-      else paidRealizedTotal += t.value;
+      if(t.type==='recebimento') receivedRealizedTotal += value;
+      else paidRealizedTotal += value;
     }
   });
-  const projectedBalance = totalBalance + receivableForecast - payableForecast;
+
+  const lastProjection = projectionSeries && projectionSeries.length ? projectionSeries[projectionSeries.length-1].balance : bankBalance;
+  const minPoint = projectionSeries && projectionSeries.length
+    ? projectionSeries.reduce((m,p)=>p.balance<m.balance?p:m, projectionSeries[0])
+    : { date:endISO, balance:bankBalance };
+  const projectedBalance = lastProjection;
+  const liquidityTotal = projectedBalance + investBalance;
+  const cashNeed = Math.max(0, -minPoint.balance);
+
   return {
-    bankBalance, investBalance, totalBalance,
+    bankBalance, investBalance,
+    totalBalance: bankBalance + investBalance,
+    liquidityTotal,
     receivableForecast, payableForecast, projectedBalance,
     overdueReceivable, overduePayable,
     receivedRealizedTotal, paidRealizedTotal,
+    minProjectedBalance: minPoint.balance,
+    minProjectedDate: minPoint.date,
+    cashNeed,
+  };
+}
+
+// Variação "vs. período anterior" dos KPIs, para o selo de tendência nos cards.
+// Só calculamos onde dá pra comparar com dado real: Recebimentos/Pagamentos
+// (somas de lançamentos realizados no período anterior de mesmo tamanho) e os
+// saldos que derivam de contas-corrente (saldo atual menos o fluxo realizado
+// do período = saldo de antes do período). "Aplicações" não tem histórico de
+// saldo — não inventamos um número para ela, o card simplesmente não mostra
+// selo de tendência.
+function computeKPITrends(transactions, startISO, endISO, k){
+  const spanDays = daysBetweenISO(startISO, endISO) + 1;
+  const prevEnd = addDaysISO(startISO, -1);
+  const prevStart = addDaysISO(prevEnd, -(spanDays-1));
+
+  let prevReceived=0, prevPaid=0, netCurrentRealized=0, netCurrentAll=0;
+  transactions.forEach(t=>{
+    if(t.date>=prevStart && t.date<=prevEnd && t.status==='realizado'){
+      if(t.type==='recebimento') prevReceived += t.value; else prevPaid += t.value;
+    }
+    if(t.date>=startISO && t.date<=endISO){
+      const signed = t.type==='recebimento' ? t.value : -t.value;
+      if(t.status==='realizado') netCurrentRealized += signed;
+      netCurrentAll += signed;
+    }
+  });
+
+  const prevBankBalance = k.bankBalance - netCurrentRealized;
+  const prevProjectedBalance = k.projectedBalance - netCurrentAll;
+
+  const pct = (curr, prev)=>{
+    if(prev===0) return curr===0 ? 0 : null;
+    return ((curr-prev)/Math.abs(prev))*100;
+  };
+  return {
+    bankBalance: pct(k.bankBalance, prevBankBalance),
+    receivedRealizedTotal: pct(k.receivedRealizedTotal, prevReceived),
+    paidRealizedTotal: pct(k.paidRealizedTotal, prevPaid),
+    projectedBalance: pct(k.projectedBalance, prevProjectedBalance),
   };
 }
 
@@ -859,69 +1469,207 @@ function computeDailySeries(transactions, startISO, endISO){
   return Object.values(map);
 }
 
-function computeCumulativeSeries(transactions, dailySeries, currentTotalBalance){
-  const today = todayISO();
-  const dates = dailySeries.map(d=>d.date);
-  let idxToday = dates.indexOf(today);
-  if(idxToday === -1){
-    // today outside window: clamp to nearest edge
-    idxToday = today < dates[0] ? -1 : dates.length;
-  }
-  const realizedNet = {};
-  const forecastNetToday = {}; // overdue+today previsto folded into 'today'
-  transactions.forEach(t=>{
-    const net = (t.type==='recebimento'?1:-1) * t.value;
-    if(t.status==='realizado'){
-      realizedNet[t.date] = (realizedNet[t.date]||0) + net;
-    } else if(t.date <= today){
-      forecastNetToday[today] = (forecastNetToday[today]||0) + net;
-    }
-  });
-  // future forecast net keyed by its own date
-  const forecastNetFuture = {};
-  transactions.forEach(t=>{
-    if(t.status==='previsto' && t.date > today){
-      const net = (t.type==='recebimento'?1:-1) * t.value;
-      forecastNetFuture[t.date] = (forecastNetFuture[t.date]||0) + net;
-    }
-  });
-
-  const balances = new Array(dates.length).fill(0);
-  if(idxToday >= 0 && idxToday < dates.length){
-    balances[idxToday] = currentTotalBalance + (forecastNetToday[today]||0);
-    for(let i=idxToday+1;i<dates.length;i++){
-      balances[i] = balances[i-1] + (realizedNet[dates[i]]||0) + (forecastNetFuture[dates[i]]||0);
-    }
-    for(let i=idxToday-1;i>=0;i--){
-      balances[i] = balances[i+1] - (realizedNet[dates[i+1]]||0) - (forecastNetFuture[dates[i+1]]||0);
-    }
-  } else if(idxToday < 0){
-    // whole window is in the future
-    let running = currentTotalBalance + (forecastNetToday[today]||0);
-    for(let i=0;i<dates.length;i++){
-      running += (realizedNet[dates[i]]||0) + (forecastNetFuture[dates[i]]||0);
-      balances[i] = running;
-    }
-  } else {
-    // whole window is in the past
-    let running = currentTotalBalance + (forecastNetToday[today]||0);
-    for(let i=dates.length-1;i>=0;i--){
-      balances[i] = running;
-      running -= (realizedNet[dates[i]]||0);
-    }
-  }
-  return dates.map((d,i)=>({ date:d, balance: balances[i] }));
+// Diário: um lançamento por dia do período com Entradas, Saídas e Saldo
+// acumulado — o saldo acumulado reconcilia com o saldo bancário real (contas
+// corrente, sem aplicações), não é só uma soma de lançamentos.
+function computeDiarioSeries(transactions, startISO, endISO, bankBalance){
+  const daily = computeDailySeries(transactions, startISO, endISO);
+  const cumulative = computeCumulativeSeries(transactions, daily, bankBalance);
+  return daily.map((d,i)=>({
+    date: d.date,
+    entradas: d.inRealized + d.inForecast,
+    saidas: d.outRealized + d.outForecast,
+    saldo: cumulative[i].balance,
+  }));
 }
 
-function computeCategoryBreakdown(transactions, startISO, endISO, limit){
-  const totals = {};
-  transactions.forEach(t=>{
-    if(t.date < startISO || t.date > endISO) return;
-    const key = t.category || 'Sem categoria';
-    totals[key] = (totals[key]||0) + t.value;
+function renderDiario(transactions, kpis, startISO, endISO){
+  const body = document.getElementById('diarioBody');
+  const cards = document.getElementById('diarioCards');
+  const footer = document.getElementById('diarioFooter');
+  const period = document.getElementById('diarioPeriod');
+  if(!body && !cards) return;
+  if(period) period.textContent = `${formatDateBR(startISO)} a ${formatDateBR(endISO)}`;
+
+  const series = computeDiarioSeries(transactions, startISO, endISO, kpis.bankBalance);
+  const today = todayISO();
+  const movementDays = series.filter(d=>d.entradas||d.saidas).length;
+
+  if(footer) footer.textContent = `${series.length} dia${series.length===1?'':'s'} no período • ${movementDays} com movimentação • saldo acumulado reconciliado com o saldo bancário`;
+
+  const dateCell = d => `${formatDateBR(d.date)}${d.date>today ? ` <span class="pill pill-previsto">Previsto</span>` : ''}`;
+
+  if(body){
+    body.innerHTML = series.length ? series.map(d=>`
+      <tr>
+        <td class="matrix-date">${dateCell(d)}</td>
+        <td class="num-col num matrix-in">${d.entradas ? '+'+formatBRL(d.entradas,true) : '—'}</td>
+        <td class="num-col num matrix-out">${d.saidas ? '-'+formatBRL(d.saidas,true) : '—'}</td>
+        <td class="num-col num matrix-net ${d.saldo<0?'neg':'pos'}">${formatBRL(d.saldo,true)}</td>
+      </tr>`).join('') : `<tr><td colspan="4"><div class="empty-state">Nenhum dia neste período.</div></td></tr>`;
+  }
+  if(cards){
+    cards.innerHTML = series.length ? series.map(d=>`
+      <div class="matrix-day-card">
+        <div class="matrix-day-card-date">${dateCell(d)}</div>
+        <div class="matrix-day-card-row"><span>Entradas</span><b class="num matrix-in">${d.entradas?'+'+formatBRL(d.entradas,true):'—'}</b></div>
+        <div class="matrix-day-card-row"><span>Saídas</span><b class="num matrix-out">${d.saidas?'-'+formatBRL(d.saidas,true):'—'}</b></div>
+        <div class="matrix-day-card-net ${d.saldo<0?'neg':'pos'}"><span>Saldo acumulado</span><span class="num">${formatBRL(d.saldo,true)}</span></div>
+      </div>`).join('') : `<div class="empty-state">Nenhum dia neste período.</div>`;
+  }
+}
+
+/* ==== RENDER: POSIÇÃO POR BANCO ==== */
+function isAccountFresh(asOfDate){
+  if(!asOfDate) return false;
+  return daysBetweenISO(asOfDate, todayISO()) <= ACCOUNT_STALE_DAYS;
+}
+function freshnessPillHtml(asOfDate){
+  const fresh = isAccountFresh(asOfDate);
+  return `<span class="pill ${fresh?'pill-fresh':'pill-stale'}">${fresh?'Atualizada':'Desatualizada'}</span>`;
+}
+
+function renderBankPosition(accounts, transactions, startISO, endISO){
+  const body = document.getElementById('bankPositionBody');
+  const foot = document.getElementById('bankPositionFoot');
+  const cards = document.getElementById('bankPositionCards');
+  const toggleWrap = document.getElementById('bankPositionToggleWrap');
+  const toggleBtn = document.getElementById('btnBankPositionToggle');
+  if(!body && !cards) return;
+  const editable = !state.usingDemo && state.canEdit;
+  const kindLabel = { conta:'Conta corrente', aplicacao:'Aplicação' };
+  const sorted = accounts.filter(a=>a.kind==='conta').sort((a,b)=>(a.order??0)-(b.order??0));
+
+  const allRows = sorted.map(a=>{
+    let receivable=0, payable=0;
+    transactions.forEach(t=>{
+      if(!transactionMatchesAccount(t, a, accounts) || t.status!=='previsto') return;
+      if(startISO && t.date < startISO) return;
+      if(endISO && t.date > endISO) return;
+      if(t.type==='recebimento') receivable += t.value; else payable += t.value;
+    });
+    const projected = (Number(a.balance)||0) + receivable - payable;
+    return { account:a, receivable, payable, projected };
   });
-  const arr = Object.entries(totals).map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
-  return arr.slice(0, limit||6);
+  const showAll = state.bankPositionExpanded || allRows.length <= BANK_POSITION_VISIBLE;
+  const rows = showAll ? allRows : allRows.slice(0, BANK_POSITION_VISIBLE);
+
+  if(toggleWrap){
+    toggleWrap.hidden = allRows.length <= BANK_POSITION_VISIBLE;
+    if(toggleBtn) toggleBtn.textContent = state.bankPositionExpanded ? 'Ver menos' : 'Ver todos os bancos';
+  }
+
+  if(body){
+    body.innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td><div class="bank-name-cell">${bankBadgeHtml(r.account.name,26)}<span>${escapeHtml(r.account.name)}</span></div></td>
+        <td>${kindLabel[r.account.kind]||r.account.kind}</td>
+        <td class="num-col num">${formatBRL(r.account.balance,true)}</td>
+        <td class="num-col num matrix-in">${formatBRL(r.receivable,true)}</td>
+        <td class="num-col num matrix-out">${formatBRL(r.payable,true)}</td>
+        <td class="num-col num matrix-net ${r.projected<0?'neg':r.projected>0?'pos':''}">${formatBRL(r.projected,true)}</td>
+        <td>${freshnessPillHtml(r.account.asOfDate)} <span class="num bank-position-date">${formatDateBR(r.account.asOfDate)}</span></td>
+        <td class="bp-actions-col">${editable ? `<button class="icon-btn" data-edit-acc="${r.account.id}" title="Editar conta">&#9998;</button>` : ''}</td>
+      </tr>`).join('') : `<tr><td colspan="8"><div class="empty-state">Nenhuma conta cadastrada.</div></td></tr>`;
+    body.querySelectorAll('[data-edit-acc]').forEach(btn=>{
+      btn.onclick = ()=> openAccountModal(accounts.find(a=>a.id===btn.dataset.editAcc));
+    });
+  }
+  if(foot){
+    if(allRows.length){
+      const totBal = allRows.reduce((s,r)=>s+(Number(r.account.balance)||0),0);
+      const totRecv = allRows.reduce((s,r)=>s+r.receivable,0);
+      const totPay = allRows.reduce((s,r)=>s+r.payable,0);
+      const totProj = allRows.reduce((s,r)=>s+r.projected,0);
+      foot.innerHTML = `<tr>
+        <td>Total</td><td></td>
+        <td class="num-col num">${formatBRL(totBal,true)}</td>
+        <td class="num-col num matrix-in">${formatBRL(totRecv,true)}</td>
+        <td class="num-col num matrix-out">${formatBRL(totPay,true)}</td>
+        <td class="num-col num matrix-net ${totProj<0?'neg':totProj>0?'pos':''}">${formatBRL(totProj,true)}</td>
+        <td>—</td>
+        <td></td>
+      </tr>`;
+    } else {
+      foot.innerHTML = '';
+    }
+  }
+
+  if(cards){
+    cards.innerHTML = rows.length ? rows.map(r=>`
+      <div class="bank-card">
+        <div class="bank-card-head">
+          ${bankBadgeHtml(r.account.name,32)}
+          <div class="bank-card-head-text">
+            <span class="bank-card-name">${escapeHtml(r.account.name)}</span>
+            <span class="bank-card-kind">${kindLabel[r.account.kind]||r.account.kind}</span>
+          </div>
+          ${editable ? `<button class="icon-btn" data-edit-acc="${r.account.id}" title="Editar conta">&#9998;</button>` : ''}
+        </div>
+        <div class="bank-card-balance num">${formatBRL(r.account.balance,true)}</div>
+        <div class="bank-card-foot">
+          <span class="num bank-position-date">${formatDateBR(r.account.asOfDate)}</span>
+          ${freshnessPillHtml(r.account.asOfDate)}
+        </div>
+        <details class="bank-card-more">
+          <summary>Ver detalhes</summary>
+          <div class="bank-card-more-body">
+            <span>A receber: <b class="num">${formatBRL(r.receivable,true)}</b></span>
+          </div>
+          <div class="bank-card-more-body">
+            <span>A pagar: <b class="num">${formatBRL(r.payable,true)}</b></span>
+          </div>
+          <div class="bank-card-more-body">
+            <span>Projetado: <b class="num ${r.projected<0?'neg':r.projected>0?'pos':''}">${formatBRL(r.projected,true)}</b></span>
+          </div>
+        </details>
+      </div>`).join('') : `<div class="empty-state">Nenhuma conta cadastrada.</div>`;
+    cards.querySelectorAll('[data-edit-acc]').forEach(btn=>{
+      btn.onclick = ()=> openAccountModal(accounts.find(a=>a.id===btn.dataset.editAcc));
+    });
+  }
+}
+
+function computeCumulativeSeries(transactions, dailySeries, currentBankBalance){
+  const today = todayISO();
+  const dates = dailySeries.map(d=>d.date);
+  if(!dates.length) return [];
+
+  const realizedNet = {};
+  const forecastNet = {};
+  let overdueForecastNet = 0;
+  transactions.forEach(t=>{
+    const value = Number(t.value)||0;
+    const net = (t.type==='recebimento'?1:-1) * value;
+    if(t.status==='realizado'){
+      realizedNet[t.date] = (realizedNet[t.date]||0) + net;
+    } else if(t.status==='previsto'){
+      forecastNet[t.date] = (forecastNet[t.date]||0) + net;
+      if(t.date <= today) overdueForecastNet += net;
+    }
+  });
+
+  function historicalBalanceAt(dateISO){
+    let afterNet = 0;
+    Object.keys(realizedNet).forEach(d=>{
+      if(d > dateISO && d <= today) afterNet += realizedNet[d];
+    });
+    return currentBankBalance - afterNet;
+  }
+
+  function futureBalanceAt(dateISO){
+    let running = currentBankBalance + overdueForecastNet;
+    Object.keys(forecastNet).forEach(d=>{
+      if(d > today && d <= dateISO) running += forecastNet[d];
+    });
+    return running;
+  }
+
+  return dates.map(date=>{
+    if(date < today) return { date, balance: historicalBalanceAt(date), mode:'realizado' };
+    if(date === today) return { date, balance: currentBankBalance + overdueForecastNet, mode:'projetado' };
+    return { date, balance: futureBalanceAt(date), mode:'projetado' };
+  });
 }
 
 function filteredTransactions(transactions){
@@ -930,7 +1678,7 @@ function filteredTransactions(transactions){
   return transactions.filter(t=>{
     if(f.tipo && t.type!==f.tipo) return false;
     if(f.status && t.status!==f.status) return false;
-    if(f.conta && t.account!==f.conta) return false;
+    if(f.conta && t.account!==f.conta && t.accountId!==f.conta) return false;
     if(q){
       const hay = `${t.description||''} ${t.account||''} ${t.category||''}`.toLowerCase();
       if(!hay.includes(q)) return false;
@@ -940,31 +1688,58 @@ function filteredTransactions(transactions){
 }
 
 /* ==== RENDER: KPIS ==== */
-function renderKPIs(k){
-  const projNeg = k.projectedBalance < 0;
-  const recvBadge = k.overdueReceivable>0 ? {cls:'warn', text:'Atenção'} : null;
-  const payBadge = k.overduePayable>0 ? {cls:'crit', text:'Atraso'} : null;
+function trendHtml(pct){
+  if(pct===null || pct===undefined || !isFinite(pct)) return '';
+  const up = pct >= 0;
+  const cls = up ? 'pos' : 'neg';
+  const arrow = up ? '&#8593;' : '&#8595;';
+  return `<div class="kpi-trend ${cls}"><span aria-hidden="true">${arrow}</span> ${Math.abs(pct).toLocaleString('pt-BR',{maximumFractionDigits:2})}% <span class="kpi-trend-label">vs. período anterior</span></div>`;
+}
+
+function renderKPIs(k, trends){
+  const t = trends || {};
   const tiles = [
-    { label:'Saldo bancário', value: formatBRL(k.bankBalance), sub: 'Contas correntes' },
-    { label:'Recebimentos', value: formatBRL(k.receivedRealizedTotal), sub: 'Recebido (realizado)', cls:'pos',
-      subline: { label:'A receber', value: formatBRL(k.receivableForecast), badge: recvBadge } },
-    { label:'Pagamentos realizados', value: formatBRL(k.paidRealizedTotal), sub: 'Pago (realizado)', cls:'neg',
-      subline: { label:'A pagar', value: formatBRL(k.payableForecast), badge: payBadge } },
-    { label:'Saldo projetado', value: formatBRL(k.projectedBalance), sub: 'Saldo atual + previsto', cls: projNeg?'neg':'pos',
-      badge: projNeg ? {cls:'crit', text:'Negativo'} : null },
-    { label:'Aplicações', value: formatBRL(k.investBalance), sub: 'Investimentos e reservas' },
-    { label:'Saldo total disponível', value: formatBRL(k.totalBalance), sub: 'Bancos + aplicações', strong:true },
+    { label:'Saldo bancário', value: formatBRL(k.bankBalance), icon:'bank', iconCls:'', trend: t.bankBalance,
+      sub:'Posição atual das contas correntes' },
+    { label:'Recebimentos realizados', value: formatBRL(k.receivedRealizedTotal), icon:'arrowDownLeft', iconCls:'in', cls:'pos', trend: t.receivedRealizedTotal,
+      sub: `A receber no período: ${formatBRL(k.receivableForecast)}` },
+    { label:'Pagamentos realizados', value: formatBRL(k.paidRealizedTotal), icon:'arrowUpRight', iconCls:'out', cls:'neg', trend: t.paidRealizedTotal,
+      sub: `A pagar no período: ${formatBRL(k.payableForecast)}` },
+    { label:'Saldo bancário projetado', value: formatBRL(k.projectedBalance), icon:'trendingUp', iconCls: k.projectedBalance<0?'out':'in',
+      cls: k.projectedBalance<0?'neg':'pos', trend: t.projectedBalance, sub:'Sem considerar aplicações' },
+    { label:'Aplicações', value: formatBRL(k.investBalance), icon:'clock', iconCls:'', sub:'Investimentos e reservas' },
+    { label:'Disponibilidade financeira', value: formatBRL(k.liquidityTotal), icon:'wallet', iconCls:'accent', strong:true,
+      sub:'Saldo projetado + aplicações' },
   ];
-  document.getElementById('kpiRow').innerHTML = tiles.map(t=>`
+  document.getElementById('kpiRow').innerHTML = tiles.map(tile=>`
     <div class="kpi-tile">
-      <div class="kpi-label"><span>${escapeHtml(t.label)}</span>${t.badge?`<span class="kpi-badge ${t.badge.cls}">${t.badge.text}</span>`:''}</div>
-      <div class="kpi-value num ${t.cls||''}">${t.value}</div>
-      <div class="kpi-sub">${escapeHtml(t.sub)}</div>
-      ${t.subline ? `<div class="kpi-subline">
-        <div class="kpi-subline-top"><span>${escapeHtml(t.subline.label)}</span>${t.subline.badge?`<span class="kpi-badge ${t.subline.badge.cls}">${t.subline.badge.text}</span>`:''}</div>
-        <b class="num">${t.subline.value}</b>
-      </div>` : ''}
+      <div class="kpi-icon ${tile.iconCls}">${svgIcon(tile.icon,18)}</div>
+      <div class="kpi-label">${escapeHtml(tile.label)}</div>
+      <div class="kpi-value num ${tile.cls||''}">${tile.value}</div>
+      ${tile.trend!==undefined ? trendHtml(tile.trend) : ''}
+      ${tile.sub?`<div class="kpi-sub">${escapeHtml(tile.sub)}</div>`:''}
     </div>`).join('');
+
+  const risk = document.getElementById('cashRiskRow');
+  if(risk){
+    const need = k.cashNeed > 0;
+    risk.innerHTML = `
+      <div class="cash-risk-card ${k.minProjectedBalance<0?'danger':'ok'}">
+        <span class="cash-risk-label">Menor saldo projetado</span>
+        <strong class="num ${k.minProjectedBalance<0?'neg':'pos'}">${formatBRL(k.minProjectedBalance)}</strong>
+        <span class="cash-risk-note">Menor posição bancária no período selecionado</span>
+      </div>
+      <div class="cash-risk-card">
+        <span class="cash-risk-label">Data crítica</span>
+        <strong>${formatDateBR(k.minProjectedDate)}</strong>
+        <span class="cash-risk-note">${need?'Data do menor saldo e referência para cobertura':'Menor ponto de caixa do período'}</span>
+      </div>
+      <div class="cash-risk-card ${need?'danger':'ok'}">
+        <span class="cash-risk-label">Necessidade de Caixa</span>
+        <strong class="num ${need?'neg':'pos'}">${formatBRL(k.cashNeed)}</strong>
+        <span class="cash-risk-note">${need?'Valor mínimo para evitar saldo bancário negativo':'Não há insuficiência projetada no período'}</span>
+      </div>`;
+  }
 }
 
 /* ==== RENDER: CHARTS ==== */
@@ -983,131 +1758,17 @@ function svgEl(tag, attrs){
   return s+'/>';
 }
 
-function renderDailyLegend(){
-  document.getElementById('dailyLegend').innerHTML = `
-    <div class="legend-item"><span class="legend-swatch" style="background:var(--in)"></span>Recebido realizado</div>
-    <div class="legend-item"><span class="legend-swatch hatched" style="color:var(--in)"></span>Recebido previsto</div>
-    <div class="legend-item"><span class="legend-swatch" style="background:var(--out)"></span>Pago realizado</div>
-    <div class="legend-item"><span class="legend-swatch hatched" style="color:var(--out)"></span>Pago previsto</div>
+function renderProjectionLegend(){
+  const el = document.getElementById('dailyLegend');
+  if(!el) return;
+  el.innerHTML = `
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Realizado / projetado</div>
+    <div class="legend-item"><span class="legend-swatch dashed" style="border-color:var(--accent)"></span>Projeção</div>
   `;
 }
 
-let dailySeriesCache = [];
-function drawDailyChart(series){
-  dailySeriesCache = series;
-  const W=960, H=260, mL=54, mR=12, mT=14, mB=28;
-  const plotW=W-mL-mR, plotH=H-mT-mB;
-  const baselineY = mT + plotH/2;
-  const maxIn = Math.max(1, ...series.map(d=>d.inRealized+d.inForecast));
-  const maxOut = Math.max(1, ...series.map(d=>d.outRealized+d.outForecast));
-  const maxVal = niceCeil(Math.max(maxIn,maxOut));
-  const scale = (plotH/2 - 6) / maxVal;
-  const n = series.length;
-  const slot = plotW/n;
-  const barW = clamp(slot*0.64, 1, 22);
-  const today = todayISO();
-
-  let grid = '';
-  [0,0.5,1].forEach(f=>{
-    const yUp = baselineY - f*maxVal*scale;
-    const yDn = baselineY + f*maxVal*scale;
-    grid += svgEl('line',{x1:mL,x2:W-mR,y1:yUp,y2:yUp,stroke:'var(--line-soft)','stroke-width':1});
-    if(f>0) grid += svgEl('line',{x1:mL,x2:W-mR,y1:yDn,y2:yDn,stroke:'var(--line-soft)','stroke-width':1});
-    grid += `<text x="${mL-8}" y="${yUp+3}" text-anchor="end" font-size="9.5" fill="var(--ink-muted)" font-family="IBM Plex Mono, monospace">${formatCompactBRL(f*maxVal)}</text>`;
-    if(f>0) grid += `<text x="${mL-8}" y="${yDn+3}" text-anchor="end" font-size="9.5" fill="var(--ink-muted)" font-family="IBM Plex Mono, monospace">-${formatCompactBRL(f*maxVal).replace('-','')}</text>`;
-  });
-  grid += svgEl('line',{x1:mL,x2:W-mR,y1:baselineY,y2:baselineY,stroke:'var(--baseline, var(--line))','stroke-width':1.2});
-
-  let todayLine = '';
-  const todayIdx = series.findIndex(d=>d.date===today);
-  if(todayIdx>=0){
-    const tx = mL + slot*todayIdx + slot/2;
-    todayLine = svgEl('line',{x1:tx,x2:tx,y1:mT,y2:H-mB,stroke:'var(--ink-muted)','stroke-width':1,'stroke-dasharray':'2,3'})
-      + `<text x="${tx}" y="${mT-3}" text-anchor="middle" font-size="9.5" fill="var(--ink-muted)">hoje</text>`;
-  }
-
-  let bars = '';
-  const gap = 2;
-  series.forEach((d,i)=>{
-    const cx = mL + slot*i + slot/2;
-    const x = cx - barW/2;
-    // up: realized then forecast stacked outward
-    let y = baselineY;
-    if(d.inRealized>0){
-      const h = d.inRealized*scale;
-      bars += rectSeg(x,y-h,barW,h,'var(--in)', h>6);
-      y -= h+gap;
-    }
-    if(d.inForecast>0){
-      const h = d.inForecast*scale;
-      bars += rectSeg(x,y-h,barW,h,'var(--in)', h>6, true);
-      y -= h+gap;
-    }
-    // down
-    y = baselineY;
-    if(d.outRealized>0){
-      const h = d.outRealized*scale;
-      bars += rectSeg(x,y,barW,h,'var(--out)', h>6);
-      y += h+gap;
-    }
-    if(d.outForecast>0){
-      const h = d.outForecast*scale;
-      bars += rectSeg(x,y,barW,h,'var(--out)', h>6, true);
-      y += h+gap;
-    }
-  });
-
-  let xLabels = '';
-  const step = Math.max(1, Math.ceil(n/11));
-  series.forEach((d,i)=>{
-    if(i%step!==0 && i!==n-1) return;
-    const cx = mL + slot*i + slot/2;
-    xLabels += `<text x="${cx}" y="${H-mB+16}" text-anchor="middle" font-size="9.5" fill="var(--ink-muted)">${formatDateShort(d.date)}</text>`;
-  });
-
-  const svg = document.getElementById('dailyChart');
-  svg.innerHTML = grid + todayLine + bars + xLabels;
-
-  attachDailyHover(series, {W,H,mL,mR,mT,mB,slot,n});
-}
-function rectSeg(x,y,w,h,color,rounded,forecast){
-  const r = rounded ? Math.min(4,w/2,h/2) : 0;
-  const fill = forecast ? `fill:${color};opacity:0.42` : `fill:${color}`;
-  const dash = forecast ? ` stroke="${color}" stroke-width="1" stroke-dasharray="2,2" stroke-opacity="0.9"` : '';
-  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" ry="${r}" style="${fill}"${dash}></rect>`;
-}
-
-function attachDailyHover(series, geo){
-  const wrap = document.getElementById('dailyChartWrap');
-  const tooltip = document.getElementById('dailyTooltip');
-  const svg = document.getElementById('dailyChart');
-  function onMove(e){
-    const rect = svg.getBoundingClientRect();
-    const relX = (e.clientX-rect.left)/rect.width * geo.W;
-    let idx = Math.floor((relX-geo.mL)/geo.slot);
-    idx = clamp(idx,0,series.length-1);
-    const d = series[idx];
-    if(!d) return;
-    const totalIn = d.inRealized+d.inForecast, totalOut = d.outRealized+d.outForecast;
-    tooltip.innerHTML = `<div class="tt-title">${formatDateBR(d.date)}</div>
-      <div class="tt-row"><span>Recebido realizado</span><b>${formatBRL(d.inRealized,true)}</b></div>
-      <div class="tt-row"><span>Recebido previsto</span><b>${formatBRL(d.inForecast,true)}</b></div>
-      <div class="tt-row"><span>Pago realizado</span><b>${formatBRL(d.outRealized,true)}</b></div>
-      <div class="tt-row"><span>Pago previsto</span><b>${formatBRL(d.outForecast,true)}</b></div>
-      <div class="tt-row" style="border-top:1px solid var(--line-soft);margin-top:4px;padding-top:4px;"><span>Líquido do dia</span><b>${formatBRL(totalIn-totalOut,true)}</b></div>`;
-    const wrapRect = wrap.getBoundingClientRect();
-    let left = e.clientX-wrapRect.left+14, top = e.clientY-wrapRect.top-10;
-    left = clamp(left, 4, wrapRect.width-190);
-    tooltip.style.left = left+'px';
-    tooltip.style.top = top+'px';
-    tooltip.classList.add('show');
-  }
-  wrap.onmousemove = onMove;
-  wrap.onmouseleave = ()=> tooltip.classList.remove('show');
-}
-
 function drawCumulativeChart(series){
-  const W=960, H=200, mL=54, mR=12, mT=14, mB=24;
+  const W=960, H=260, mL=54, mR=12, mT=20, mB=24;
   const plotW=W-mL-mR, plotH=H-mT-mB;
   const vals = series.map(d=>d.balance);
   let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
@@ -1131,14 +1792,19 @@ function drawCumulativeChart(series){
   let todayLine = '';
   if(todayIdx>=0){
     const tx = x(todayIdx);
-    todayLine = svgEl('line',{x1:tx,x2:tx,y1:mT,y2:H-mB,stroke:'var(--ink-muted)','stroke-width':1,'stroke-dasharray':'2,3'});
+    todayLine = svgEl('line',{x1:tx,x2:tx,y1:mT,y2:H-mB,stroke:'var(--ink-muted)','stroke-width':1,'stroke-dasharray':'2,3'})
+      + `<text x="${tx}" y="${mT-6}" text-anchor="middle" font-size="9.5" fill="var(--ink-muted)">Hoje</text>`;
   }
 
-  let segs = '';
+  const gradDefs = `<defs><linearGradient id="cumAreaGrad" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.22"/>
+    <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+  </linearGradient></defs>`;
+  let segs = gradDefs;
   let areaPts = `M ${x(0)} ${zeroY} `;
   for(let i=0;i<series.length;i++) areaPts += `L ${x(i)} ${y(series[i].balance)} `;
   areaPts += `L ${x(series.length-1)} ${zeroY} Z`;
-  segs += `<path d="${areaPts}" fill="var(--accent)" opacity="0.07" stroke="none"></path>`;
+  segs += `<path d="${areaPts}" fill="url(#cumAreaGrad)" stroke="none"></path>`;
 
   for(let i=0;i<series.length-1;i++){
     const a=series[i], b=series[i+1];
@@ -1186,31 +1852,7 @@ function attachCumHover(series, geo){
   wrap.onmouseleave = ()=> tooltip.classList.remove('show');
 }
 
-/* ==== RENDER: ACCOUNTS & CATEGORIES ==== */
-function renderAccounts(accounts, kpis){
-  const kindLabel = { conta:'Conta corrente', aplicacao:'Aplicação' };
-  const sorted = [...accounts].sort((a,b)=>(a.order??0)-(b.order??0));
-  const editable = !state.usingDemo && state.canEdit;
-  document.getElementById('accountList').innerHTML = sorted.length ? sorted.map(a=>`
-    <div class="account-row">
-      <div>
-        <div class="account-name">${escapeHtml(a.name)}</div>
-        <div class="account-kind">${kindLabel[a.kind]||a.kind} &middot; ${formatDateBR(a.asOfDate)}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <div class="account-bal num">${formatBRL(a.balance)}</div>
-        ${editable ? `<div class="account-actions">
-          <button class="icon-btn" data-edit-acc="${a.id}" title="Editar">&#9998;</button>
-        </div>` : ''}
-      </div>
-    </div>`).join('') : `<div class="empty-state">Nenhuma conta cadastrada.</div>`;
-  document.getElementById('accountTotal').innerHTML = `<span>Total</span><span class="num">${formatBRL(kpis.totalBalance)}</span>`;
-
-  document.querySelectorAll('[data-edit-acc]').forEach(btn=>{
-    btn.onclick = ()=> openAccountModal(accounts.find(a=>a.id===btn.dataset.editAcc));
-  });
-}
-
+/* ==== RENDER: FONTES ==== */
 function renderSources(sources){
   const list = document.getElementById('sourceList');
   if(!list) return;
@@ -1236,23 +1878,22 @@ function renderSources(sources){
   });
 }
 
-function renderCategories(transactions, startISO, endISO){
-  const cats = computeCategoryBreakdown(transactions, startISO, endISO, 6);
-  const max = Math.max(1, ...cats.map(c=>c.value));
-  document.getElementById('categoryList').innerHTML = cats.length ? cats.map(c=>`
-    <div class="category-row">
-      <div class="category-top"><span class="category-name">${escapeHtml(c.name)}</span><span class="category-val num">${formatCompactBRL(c.value)}</span></div>
-      <div class="category-bar"><div class="category-bar-fill" style="width:${(c.value/max*100).toFixed(1)}%;background:var(--accent)"></div></div>
-    </div>`).join('') : `<div class="empty-state">Sem lançamentos no período.</div>`;
-}
-
 /* ==== RENDER: TABLE & FILTERS ==== */
 function renderRangeControl(){
-  document.getElementById('rangeControl').innerHTML = RANGE_PRESETS.map(r=>
-    `<button class="range-btn ${r.id===currentRangeId?'active':''}" data-range="${r.id}">${r.label}</button>`
+  const trigger = document.getElementById('headerRangeTrigger');
+  const label = document.getElementById('headerRangeLabel');
+  const pop = document.getElementById('headerRangePop');
+  if(!trigger || !pop) return;
+  const competencias = generateCompetencias();
+  const active = competencias.find(r=>r.id===currentRangeId);
+  if(label) label.textContent = active ? active.label : (currentRangeId==='all' ? 'Todo o período' : monthLabel(...currentRangeId.split('-').map(Number)));
+  const items = competencias.map(r=>
+    `<button type="button" class="range-pop-item ${r.id===currentRangeId?'active':''}" data-range="${r.id}" role="menuitemradio" aria-checked="${r.id===currentRangeId}">${escapeHtml(r.label)}</button>`
   ).join('');
-  document.querySelectorAll('[data-range]').forEach(btn=>{
-    btn.onclick = ()=>{ currentRangeId = btn.dataset.range; renderAll(); };
+  pop.innerHTML = items + `<div class="range-pop-divider"></div>` +
+    `<button type="button" class="range-pop-item ${currentRangeId==='all'?'active':''}" data-range="all" role="menuitemradio" aria-checked="${currentRangeId==='all'}">Todo o período com dados</button>`;
+  pop.querySelectorAll('[data-range]').forEach(btn=>{
+    btn.onclick = ()=>{ currentRangeId = btn.dataset.range; pop.hidden = true; trigger.setAttribute('aria-expanded','false'); renderAll(); };
   });
 }
 
@@ -1265,23 +1906,97 @@ function renderAccountFilterOptions(accounts, transactions){
     `<option value="${escapeHtml(n)}" ${n===current?'selected':''}>${escapeHtml(n)}</option>`).join('');
 }
 
-function renderTable(transactions){
+/* ==== RENDER: MATRIZ POR DESCRIÇÃO ==== */
+// Lista única de lançamentos (entradas e saídas juntas, por descrição),
+// ordenada por data — substitui as duas colunas Entradas/Pagamentos por uma
+// tabela só, mais fácil de ler e de paginar.
+function descMatrixRowHtml(t){
+  const sign = t.type==='recebimento' ? '+' : '-';
+  const cls = t.type==='recebimento' ? 'matrix-in' : 'matrix-out';
+  return `<tr>
+    <td class="matrix-date">${formatDateBR(t.date)}</td>
+    <td>${escapeHtml(t.description||'—')}</td>
+    <td>${escapeHtml(t.account||'—')}</td>
+    <td class="matrix-muted">${escapeHtml(t.category||'—')}</td>
+    <td class="num-col num ${cls}">${sign}${formatBRL(t.value,true)}</td>
+    <td><span class="pill ${t.status==='realizado'?'pill-realizado':'pill-previsto'}">${STATUS_LABEL[t.status]||t.status}</span></td>
+  </tr>`;
+}
+function descMatrixCardHtml(t){
+  const sign = t.type==='recebimento' ? '+' : '-';
+  const cls = t.type==='recebimento' ? 'in' : 'out';
+  return `<div class="movement-card">
+    <div class="movement-card-top">
+      <div class="movement-card-desc">${escapeHtml(t.description||'—')}</div>
+      <div class="movement-card-val ${cls} num">${sign}${formatBRL(t.value,true)}</div>
+    </div>
+    <div class="movement-card-meta">
+      <span>${formatDateBR(t.date)}</span>
+      <span>${escapeHtml(t.account||'—')}</span>
+      <span>${escapeHtml(t.category||'—')}</span>
+      <span class="pill ${t.status==='realizado'?'pill-realizado':'pill-previsto'}">${STATUS_LABEL[t.status]||t.status}</span>
+    </div>
+  </div>`;
+}
+
+function renderDescMatrix(transactions){
   const rows = filteredTransactions(transactions);
-  const body = document.getElementById('txTableBody');
-  const shown = rows.slice(0, 300);
-  body.innerHTML = shown.length ? shown.map(t=>`
-    <tr>
-      <td class="num">${formatDateBR(t.date)}</td>
-      <td>${escapeHtml(t.description||'—')}</td>
-      <td>${escapeHtml(t.category||'—')}</td>
-      <td>${escapeHtml(t.account||'—')}</td>
-      <td><span class="pill ${t.status==='realizado'?'pill-realizado':'pill-previsto'}">${STATUS_LABEL[t.status]||t.status}</span></td>
-      <td class="num-col num" style="color:${t.type==='recebimento'?'var(--in-text)':'var(--out)'}">${t.type==='recebimento'?'+':'-'}${formatBRL(t.value,true)}</td>
-    </tr>`).join('') : `<tr><td colspan="6"><div class="empty-state">Nenhum lançamento encontrado com os filtros atuais.</div></td></tr>`;
+  const pageSize = state.descMatrixPageSize;
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows/pageSize));
+  if(state.descMatrixPage > totalPages) state.descMatrixPage = totalPages;
+  if(state.descMatrixPage < 1) state.descMatrixPage = 1;
+  const page = state.descMatrixPage;
+  const pageRows = rows.slice((page-1)*pageSize, page*pageSize);
+
+  const body = document.getElementById('descMatrixBody');
+  const cards = document.getElementById('descMatrixCards');
+  if(body){
+    body.innerHTML = pageRows.length ? pageRows.map(descMatrixRowHtml).join('')
+      : `<tr><td colspan="6"><div class="empty-state">Nenhum lançamento encontrado com os filtros atuais.</div></td></tr>`;
+  }
+  if(cards){
+    cards.innerHTML = pageRows.length ? pageRows.map(descMatrixCardHtml).join('')
+      : `<div class="empty-state">Nenhum lançamento encontrado com os filtros atuais.</div>`;
+  }
+
   const foot = document.getElementById('tableFooter');
-  foot.textContent = rows.length > shown.length
-    ? `Mostrando ${shown.length} de ${rows.length} lançamentos — refine os filtros para ver mais detalhes.`
-    : `${rows.length} lançamento${rows.length===1?'':'s'}`;
+  if(foot) foot.textContent = `${totalRows} lançamento${totalRows===1?'':'s'}`;
+
+  renderDescMatrixPagination(totalRows, totalPages, page, pageRows.length);
+}
+
+function renderDescMatrixPagination(totalRows, totalPages, page, shownRows){
+  const wrap = document.getElementById('movementsPagination');
+  const summary = document.getElementById('movementsPaginationSummary');
+  if(summary) summary.textContent = totalRows ? `Exibindo ${shownRows} de ${totalRows} lançamento${totalRows===1?'':'s'}` : 'Nenhum lançamento encontrado.';
+  if(!wrap) return;
+  if(totalRows===0){ wrap.innerHTML = ''; return; }
+
+  const pageBtn = (p, label, opts)=>{
+    const o = opts||{};
+    return `<button type="button" class="page-btn ${p===page?'active':''}" data-page="${p}" ${o.disabled?'disabled':''} aria-label="${o.aria||('Página '+p)}" ${p===page?'aria-current="page"':''}>${label}</button>`;
+  };
+  let numbered = '';
+  const windowSize = 5;
+  let from = Math.max(1, page-Math.floor(windowSize/2));
+  let to = Math.min(totalPages, from+windowSize-1);
+  from = Math.max(1, to-windowSize+1);
+  if(from>1) numbered += pageBtn(1,'1') + (from>2?'<span class="page-ellipsis">…</span>':'');
+  for(let p=from;p<=to;p++) numbered += pageBtn(p, String(p));
+  if(to<totalPages) numbered += (to<totalPages-1?'<span class="page-ellipsis">…</span>':'') + pageBtn(totalPages,String(totalPages));
+
+  wrap.innerHTML = `
+    ${pageBtn(1, svgIcon('chevronsLeft',15), {disabled:page===1, aria:'Primeira página'})}
+    ${pageBtn(page-1, svgIcon('chevronLeft',15), {disabled:page===1, aria:'Página anterior'})}
+    ${numbered}
+    ${pageBtn(page+1, svgIcon('chevronRight',15), {disabled:page===totalPages, aria:'Próxima página'})}
+    ${pageBtn(totalPages, svgIcon('chevronsRight',15), {disabled:page===totalPages, aria:'Última página'})}
+  `;
+  wrap.querySelectorAll('[data-page]').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.onclick = ()=>{ state.descMatrixPage = Number(btn.dataset.page); renderDescMatrix(activeData().transactions); };
+  });
 }
 
 function csvEscape(v){
@@ -1313,16 +2028,47 @@ async function exportCsv(){
 }
 
 /* ==== VIEWS (Painel / Histórico) ==== */
+// O cabeçalho fixo pode variar de altura (quebra de linha em telas médias,
+// fontes carregando, etc.) — medimos a altura real e ajustamos a variável
+// CSS que o conteúdo usa como padding-top, para o cabeçalho nunca cobrir
+// as seções abaixo dele, em qualquer largura de tela.
+let headerResizeObserver = null;
+function syncHeaderHeight(){
+  const topbar = document.querySelector('.topbar');
+  if(!topbar) return;
+  const h = Math.ceil(topbar.getBoundingClientRect().height);
+  if(h>0) document.documentElement.style.setProperty('--header-h', h + 'px');
+}
+function watchHeaderHeight(){
+  const topbar = document.querySelector('.topbar');
+  if(!topbar) return;
+  syncHeaderHeight();
+  if(headerResizeObserver) return;
+  if(typeof ResizeObserver === 'function'){
+    headerResizeObserver = new ResizeObserver(()=> syncHeaderHeight());
+    headerResizeObserver.observe(topbar);
+  }else{
+    window.addEventListener('resize', debounce(syncHeaderHeight, 100));
+  }
+}
+
 function switchView(view){
   const dash = document.getElementById('dashboardView');
   const hist = document.getElementById('historyView');
   const apps = document.getElementById('applicationsView');
+  const verif = document.getElementById('verificationView');
   if(dash) dash.hidden = view!=='dashboard';
   if(hist) hist.hidden = view!=='history';
   if(apps) apps.hidden = view!=='applications';
-  document.querySelectorAll('#viewTabs [data-view]').forEach(b=> b.classList.toggle('active', b.dataset.view===view));
+  if(verif) verif.hidden = view!=='verification';
+  document.querySelectorAll('#viewTabs [data-view], #mobileBottomNav [data-view]').forEach(b=>{
+    const active = b.dataset.view===view;
+    b.classList.toggle('active', active);
+    if(active) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   if(view==='history') renderHistory();
   if(view==='applications') renderApplications();
+  if(view==='verification') renderVerification();
 }
 
 function renderHistoryBankFilterOptions(history){
@@ -1351,6 +2097,93 @@ function renderHistory(){
   document.getElementById('historyFooter').textContent = `${filtered.length} envio${filtered.length===1?'':'s'} registrado${filtered.length===1?'':'s'}`;
 }
 
+/* ==== VIEW: VERIFICAÇÃO DE IMPORTAÇÃO (só financeiro) ====
+ * Cada envio (bem-sucedido ou não) fica registrado em state.history. Os
+ * leitores automáticos (Sicredi/Santander/CEF) já guardam, na hora do
+ * carregamento, uma lista de "issues" (inconsistências) no mesmo campo
+ * errorMessage do histórico — aqui como um JSON { issues:[...] } em vez do
+ * texto livre usado antigamente para erros de conexão/permissão. Essa tela
+ * decodifica os dois formatos e mostra, para cada envio com algo a revisar,
+ * o que aconteceu e o que o financeiro (ou o desenvolvedor) pode fazer. */
+function decodeHistoryIssues(h){
+  if(!h || !h.errorMessage) return [];
+  const raw = String(h.errorMessage);
+  try{
+    const parsed = JSON.parse(raw);
+    if(parsed && Array.isArray(parsed.issues)) return parsed.issues;
+  }catch(e){ /* não é JSON — mensagem antiga em texto puro, cai no fallback abaixo */ }
+  return [{
+    code: h.status==='erro' ? 'falha_no_carregamento' : 'aviso',
+    message: raw,
+    suggestion: h.status==='erro'
+      ? 'Confira o arquivo e tente carregar novamente. Se o erro persistir, envie o arquivo para revisão.'
+      : '',
+  }];
+}
+function renderVerificationBankFilterOptions(history){
+  const sel = document.getElementById('verifBankFilter');
+  if(!sel) return;
+  const banks = [...new Set(history.map(h=>h.bank))].sort();
+  const current = state.verificationBankFilter;
+  sel.innerHTML = `<option value="">Todos os bancos</option>` + banks.map(b=>
+    `<option value="${escapeHtml(b)}" ${b===current?'selected':''}>${escapeHtml(b)}</option>`).join('');
+}
+function renderVerification(){
+  const { history } = activeData();
+  const listEl = document.getElementById('verifList');
+  const kpiRow = document.getElementById('verifKpiRow');
+  if(!listEl || !kpiRow) return;
+  renderVerificationBankFilterOptions(history);
+  const filtered = state.verificationBankFilter ? history.filter(h=>h.bank===state.verificationBankFilter) : history;
+
+  const withIssues = filtered
+    .map(h=>({ h, issues: decodeHistoryIssues(h) }))
+    .filter(x=> x.h.status==='erro' || x.issues.length>0);
+  const errorCount = filtered.filter(h=>h.status==='erro').length;
+  const warningCount = withIssues.filter(x=> x.h.status!=='erro').length;
+  const cleanCount = filtered.length - withIssues.length;
+
+  const tiles = [
+    { label:'Envios com falha', value:String(errorCount), cls: errorCount>0?'neg':'' },
+    { label:'Envios com avisos', value:String(warningCount), cls: warningCount>0?'warn':'' },
+    { label:'Envios sem inconsistências', value:String(cleanCount), cls:'' },
+  ];
+  kpiRow.className = 'kpi-row';
+  kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
+  kpiRow.innerHTML = tiles.map(t=>`
+    <div class="kpi-tile">
+      <div class="kpi-label"><span>${escapeHtml(t.label)}</span></div>
+      <div class="kpi-value num ${t.cls}">${t.value}</div>
+    </div>`).join('');
+
+  if(!filtered.length){
+    listEl.innerHTML = `<div class="empty-state">Nenhum envio registrado ainda.</div>`;
+    return;
+  }
+  if(!withIssues.length){
+    listEl.innerHTML = `<div class="empty-state">Nenhuma inconsistência registrada${state.verificationBankFilter?` para ${escapeHtml(state.verificationBankFilter)}`:''} — os envios foram lidos sem avisos.</div>`;
+    return;
+  }
+  listEl.innerHTML = withIssues.map(({h,issues})=>{
+    const isError = h.status==='erro';
+    const when = h.at ? formatDateBR(h.at.slice(0,10)) + ' ' + h.at.slice(11,16) : '—';
+    return `<div class="issue-card ${isError?'is-error':''}">
+      <div class="issue-card-head">
+        <div>
+          <span class="issue-card-title">${escapeHtml(h.bank)}</span>
+          <span class="issue-card-meta"> — ${escapeHtml(h.filename||'—')}</span>
+        </div>
+        <div class="issue-card-meta">${when} &middot; <span class="pill ${isError?'pill-out':'pill-previsto'}">${isError?'Falhou':'Carregado com avisos'}</span></div>
+      </div>
+      ${issues.map(it=>`
+        <div class="issue-row">
+          <div class="issue-row-msg">${escapeHtml(it.message)}</div>
+          ${it.suggestion ? `<div class="issue-row-suggestion">O que fazer: ${escapeHtml(it.suggestion)}</div>` : ''}
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
 /* ==== VIEW: APLICAÇÕES ==== */
 function renderApplicationsBankFilterOptions(funds){
   const sel = document.getElementById('appsBankFilter');
@@ -1361,50 +2194,147 @@ function renderApplicationsBankFilterOptions(funds){
     `<option value="${escapeHtml(b)}" ${b===current?'selected':''}>${escapeHtml(b)}</option>`).join('');
 }
 
+// Extrai o número de dias de um texto de cotização de resgate tipo "D+0",
+// "D + 30", "D+2" — usado para agrupar os fundos por faixa de liquidez.
+// Texto que não segue esse padrão (vazio, "Não se aplica" etc.) vira null,
+// e cai no grupo "Não informado" em vez de ser descartado.
+function parseLiquidezDias(cotizacaoResgate){
+  const m = String(cotizacaoResgate||'').match(/D\s*\+?\s*(\d+)/i);
+  return m ? Number(m[1]) : null;
+}
+const LIQUIDEZ_BUCKETS = [
+  { label:'D+0', test: d => d===0 },
+  { label:'D+1', test: d => d===1 },
+  { label:'D+2 a D+7', test: d => d>=2 && d<=7 },
+  { label:'D+8 a D+30', test: d => d>=8 && d<=30 },
+  { label:'Acima de D+30', test: d => d>30 },
+];
+function liquidezBucketLabel(dias){
+  if(dias==null) return 'Não informado';
+  const b = LIQUIDEZ_BUCKETS.find(b=>b.test(dias));
+  return b ? b.label : 'Não informado';
+}
+// Classifica o texto livre do campo "Vínculo" da planilha em 3 grupos —
+// mesma lógica tolerante usada no resto do app para textos de banco que
+// variam de grafia (ver parseApplicationsWorkbook).
+function vinculoBucketLabel(vinculo){
+  const s = String(vinculo||'').trim();
+  if(!s) return 'Não informado';
+  if(/^livre/i.test(s)) return 'Livre';
+  if(/vincul/i.test(s)) return 'Vinculado';
+  return 'Outro';
+}
+
+// Todos os números derivados dos fundos (já filtrados por banco, se for o
+// caso) que alimentam os cards de destaque, os gráficos e a tabela de
+// prazos da tela de Aplicações — centralizado aqui para os vários pedaços
+// da tela nunca calcularem o mesmo total de formas diferentes.
+function computeAppsInsights(funds){
+  const withDias = funds.map(f=>({ f, dias: parseLiquidezDias(f.cotizacaoResgate) }));
+  const totalSaldo = funds.reduce((s,f)=>s+(f.saldoFinal||0),0);
+  const totalRendimentos = funds.reduce((s,f)=>s+(f.rendimentos||0),0);
+  const totalSaldoInicial = funds.reduce((s,f)=>s+(f.saldoInicial||0),0);
+
+  const bancoMap = new Map();
+  funds.forEach(f=> bancoMap.set(f.banco, (bancoMap.get(f.banco)||0) + (f.saldoFinal||0)));
+  const byBanco = [...bancoMap.entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
+
+  const vincMap = new Map();
+  funds.forEach(f=>{ const k = vinculoBucketLabel(f.vinculo); vincMap.set(k, (vincMap.get(k)||0) + (f.saldoFinal||0)); });
+  const byVinculo = [...vincMap.entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
+
+  const liqValMap = new Map(), liqCountMap = new Map();
+  withDias.forEach(({f,dias})=>{
+    const label = liquidezBucketLabel(dias);
+    liqValMap.set(label, (liqValMap.get(label)||0) + (f.saldoFinal||0));
+    liqCountMap.set(label, (liqCountMap.get(label)||0) + 1);
+  });
+  const liqOrder = ['D+0','D+1','D+2 a D+7','D+8 a D+30','Acima de D+30','Não informado'];
+  const byLiquidez = liqOrder.filter(l=>liqValMap.has(l)).map(label=>({ label, value: liqValMap.get(label)||0, count: liqCountMap.get(label)||0 }));
+
+  const liqD0 = withDias.filter(x=>x.dias===0).reduce((s,x)=>s+(x.f.saldoFinal||0),0);
+  const liqAte7 = withDias.filter(x=>x.dias!=null && x.dias<=7).reduce((s,x)=>s+(x.f.saldoFinal||0),0);
+  const liqAte30 = withDias.filter(x=>x.dias!=null && x.dias<=30).reduce((s,x)=>s+(x.f.saldoFinal||0),0);
+
+  const livres = vincMap.get('Livre')||0;
+  const vinculadas = vincMap.get('Vinculado')||0;
+
+  const rentMedia = totalSaldoInicial>0
+    ? (totalRendimentos/totalSaldoInicial*100)
+    : (funds.length ? funds.reduce((s,f)=>s+(f.rendimentosPct||0),0)/funds.length : 0);
+
+  const ranked = funds.filter(f=>f.rendimentosPct!=null).sort((a,b)=>b.rendimentosPct-a.rendimentosPct);
+  const melhor = ranked[0] || null;
+  const topRent = ranked.slice(0,6).map(f=>({ label:`${f.fundo} · ${f.banco}`, value:f.rendimentosPct, isPct:true }));
+
+  const staleCount = funds.filter(f=>f.stale).length;
+  const asOfDate = funds.reduce((max,f)=> (!max || (f.competencia && f.competencia>max)) ? f.competencia : max, null);
+
+  return {
+    totalSaldo, totalRendimentos, totalSaldoInicial, byBanco, byVinculo, byLiquidez,
+    liqD0, liqAte7, liqAte30, livres, vinculadas, rentMedia, melhor, topRent, staleCount, asOfDate,
+  };
+}
+
+// Lista de barras horizontais com degradê — usada nos 3 gráficos "por
+// banco/vínculo/liquidez" e no ranking de rentabilidade. `items`:
+// [{label, value, isPct?, count?}]. A largura da barra é relativa ao maior
+// valor da própria lista (não ao total), pra sempre ter pelo menos uma
+// barra cheia e as diferenças ficarem visíveis mesmo com poucos itens.
+function hbarListHtml(items, opts){
+  opts = opts || {};
+  if(!items || !items.length) return `<div class="empty-state">Sem dados.</div>`;
+  const max = Math.max(...items.map(i=>Math.abs(i.value)), 1);
+  const total = opts.total!=null ? opts.total : items.reduce((s,i)=>s+i.value,0);
+  const colors = ['c1','c2','c3','c4'];
+  return `<div class="hbar-list">${items.map((it,idx)=>{
+    const pctOfMax = Math.max(3, Math.round(Math.abs(it.value)/max*100));
+    const pctOfTotal = total>0 ? (it.value/total*100) : 0;
+    const valLabel = it.isPct
+      ? `${it.value.toLocaleString('pt-BR',{maximumFractionDigits:2})}%`
+      : formatBRL(it.value);
+    return `<div class="hbar-row">
+      <div class="hbar-top"><span class="hbar-name">${escapeHtml(it.label)}</span><span class="hbar-val">${valLabel}</span></div>
+      <div class="hbar-track"><div class="hbar-fill ${colors[idx%colors.length]}" style="width:${pctOfMax}%"></div></div>
+      ${!it.isPct ? `<span class="hbar-pct">${pctOfTotal.toLocaleString('pt-BR',{maximumFractionDigits:1})}% do total${it.count!=null?` · ${it.count} fundo${it.count===1?'':'s'}`:''}</span>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function appsKpiTilesHtml(tiles){
+  return tiles.map(t=>`
+    <div class="kpi-tile">
+      <div class="kpi-icon ${t.iconCls||''}">${svgIcon(t.icon,18)}</div>
+      <div class="kpi-label"><span>${escapeHtml(t.label)}</span></div>
+      <div class="kpi-value num ${t.cls||''}">${escapeHtml(t.value)}</div>
+      ${t.sub?`<div class="kpi-sub">${escapeHtml(t.sub)}</div>`:''}
+    </div>`).join('');
+}
+
 function renderApplications(){
   const { applications } = activeData();
+  const heroRow = document.getElementById('appsHeroRow');
   const kpiRow = document.getElementById('appsKpiRow');
-  const byBankList = document.getElementById('appsByBankList');
+  const liqKpiRow = document.getElementById('appsLiquidityKpiRow');
   const staleBanner = document.getElementById('appsStaleBanner');
   const body = document.getElementById('appsTableBody');
   const footer = document.getElementById('appsFooter');
   if(!kpiRow || !body) return;
 
   if(!applications || !applications.funds || !applications.funds.length){
+    if(heroRow) heroRow.innerHTML = '';
     kpiRow.innerHTML = '';
-    if(byBankList) byBankList.innerHTML = `<div class="empty-state">Nenhum dado carregado ainda.</div>`;
+    if(liqKpiRow) liqKpiRow.innerHTML = '';
+    ['appsChartBanco','appsChartVinculo','appsChartLiquidez','appsChartTopRent'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.innerHTML = `<div class="empty-state">Sem dados.</div>`;
+    });
+    const prazosBody = document.getElementById('appsPrazosBody');
+    if(prazosBody) prazosBody.innerHTML = `<tr><td colspan="4"><div class="empty-state">Sem dados.</div></td></tr>`;
     if(staleBanner) staleBanner.innerHTML = '';
     body.innerHTML = `<tr><td colspan="14"><div class="empty-state">Nenhum relatório de aplicações carregado ainda${state.canEdit ? ' — use "Carregar relatório" e selecione "Análise Aplicações".' : '.'}</div></td></tr>`;
     if(footer) footer.textContent = '';
     return;
-  }
-
-  const tiles = [
-    { label:'Saldo total em aplicações', value: formatBRL(applications.totalBalance), sub: `${applications.funds.length} fundo${applications.funds.length===1?'':'s'}` },
-    { label:'Dados até', value: formatDateBR(applications.asOfDate), sub: 'Competência mais recente encontrada' },
-    { label:'Desatualizados', value: String(applications.staleCount||0), sub: `Sem atualização há mais de ${APPLICATIONS_STALE_DAYS} dias`, cls: applications.staleCount>0?'neg':'' },
-  ];
-  kpiRow.className = 'kpi-row';
-  kpiRow.style.gridTemplateColumns = 'repeat(3,1fr)';
-  kpiRow.innerHTML = tiles.map(t=>`
-    <div class="kpi-tile">
-      <div class="kpi-label"><span>${escapeHtml(t.label)}</span></div>
-      <div class="kpi-value num ${t.cls||''}">${escapeHtml(t.value)}</div>
-      <div class="kpi-sub">${escapeHtml(t.sub)}</div>
-    </div>`).join('');
-
-  if(staleBanner){
-    staleBanner.innerHTML = applications.staleCount>0
-      ? `<div class="demo-banner"><span>&#9888;</span><span><b>${applications.staleCount} fundo(s)</b> sem atualização há mais de ${APPLICATIONS_STALE_DAYS} dias — exibidos com o aviso "desatualizado" abaixo. Confirme se ainda estão ativos antes de considerar o saldo.</span></div>`
-      : '';
-  }
-
-  if(byBankList){
-    byBankList.innerHTML = applications.byBank.map(b=>`
-      <div class="account-row">
-        <div><div class="account-name">${escapeHtml(b.banco)}</div></div>
-        <div class="account-bal num">${formatBRL(b.total)}</div>
-      </div>`).join('') || `<div class="empty-state">Sem dados.</div>`;
   }
 
   renderApplicationsBankFilterOptions(applications.funds);
@@ -1412,9 +2342,78 @@ function renderApplications(){
     ? applications.funds.filter(f=>f.banco===state.applicationsBankFilter)
     : applications.funds;
 
+  const ins = computeAppsInsights(filtered);
+
+  if(staleBanner){
+    staleBanner.innerHTML = ins.staleCount>0
+      ? `<div class="demo-banner"><span>&#9888;</span><span><b>${ins.staleCount} fundo(s)</b> sem atualização há mais de ${APPLICATIONS_STALE_DAYS} dias — exibidos com o aviso "desatualizado" na tabela abaixo. Confirme se ainda estão ativos antes de considerar o saldo.</span></div>`
+      : '';
+  }
+
+  if(heroRow){
+    const bancosCount = ins.byBanco.length;
+    heroRow.innerHTML = `
+      <div class="apps-hero-card">
+        <div class="apps-hero-label"><span class="apps-hero-icon">${svgIcon('wallet',20)}</span>Saldo total em aplicações</div>
+        <div class="apps-hero-value num">${formatBRL(ins.totalSaldo)}</div>
+        <div class="apps-hero-sub">${filtered.length} fundo${filtered.length===1?'':'s'}${state.applicationsBankFilter?'':` em ${bancosCount} banco${bancosCount===1?'':'s'}`} · rentabilidade média ${ins.rentMedia.toLocaleString('pt-BR',{maximumFractionDigits:2})}%</div>
+      </div>
+      <div class="apps-hero-card alt">
+        <div class="apps-hero-label"><span class="apps-hero-icon">${svgIcon('clock',20)}</span>Liquidez imediata (D+0)</div>
+        <div class="apps-hero-value num">${formatBRL(ins.liqD0)}</div>
+        <div class="apps-hero-sub">${(ins.totalSaldo>0? ins.liqD0/ins.totalSaldo*100:0).toLocaleString('pt-BR',{maximumFractionDigits:1})}% do total disponível sem prazo de resgate</div>
+      </div>`;
+  }
+
+  kpiRow.className = 'kpi-row';
+  kpiRow.style.gridTemplateColumns = '';
+  kpiRow.innerHTML = appsKpiTilesHtml([
+    { label:'Total aplicado', icon:'wallet', iconCls:'accent', value: formatBRL(ins.totalSaldo) },
+    { label:'Aplicações livres', icon:'arrowUpRight', iconCls:'in', value: formatBRL(ins.livres) },
+    { label:'Aplicações vinculadas', icon:'lock', value: formatBRL(ins.vinculadas) },
+    { label:'Rendimento do período', icon:'trendingUp', iconCls:'in', cls:'pos', value: formatBRL(ins.totalRendimentos) },
+    { label:'Rentabilidade média', icon:'percent', value: ins.rentMedia.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%' },
+    { label:'Qtd. de fundos', icon:'layers', value: String(filtered.length) },
+  ]);
+
+  const chartBanco = document.getElementById('appsChartBanco');
+  if(chartBanco) chartBanco.innerHTML = hbarListHtml(ins.byBanco, { total: ins.totalSaldo });
+  const chartVinculo = document.getElementById('appsChartVinculo');
+  if(chartVinculo) chartVinculo.innerHTML = hbarListHtml(ins.byVinculo, { total: ins.totalSaldo });
+  const chartLiquidez = document.getElementById('appsChartLiquidez');
+  if(chartLiquidez) chartLiquidez.innerHTML = hbarListHtml(ins.byLiquidez, { total: ins.totalSaldo });
+  const chartTopRent = document.getElementById('appsChartTopRent');
+  if(chartTopRent) chartTopRent.innerHTML = hbarListHtml(ins.topRent);
+
+  if(liqKpiRow){
+    liqKpiRow.className = 'kpi-row';
+    liqKpiRow.innerHTML = appsKpiTilesHtml([
+      { label:'Liquidez D+0', icon:'clock', iconCls:'in', value: formatBRL(ins.liqD0) },
+      { label:'Liquidez até D+7', icon:'clock', value: formatBRL(ins.liqAte7) },
+      { label:'Liquidez até D+30', icon:'calendar', value: formatBRL(ins.liqAte30) },
+      { label:'Melhor aplicação', icon:'trendingUp', iconCls:'in', cls:'pos',
+        value: ins.melhor ? ins.melhor.rendimentosPct.toLocaleString('pt-BR',{maximumFractionDigits:2})+'%' : '—',
+        sub: ins.melhor ? `${ins.melhor.fundo} — ${ins.melhor.banco}` : 'Sem dado de rentabilidade' },
+      { label:'Fundos desatualizados', icon:'bell', iconCls: ins.staleCount>0?'out':'', cls: ins.staleCount>0?'neg':'',
+        value: String(ins.staleCount), sub: `Sem atualização há mais de ${APPLICATIONS_STALE_DAYS} dias` },
+      { label:'Dados até', icon:'history', value: ins.asOfDate ? formatDateBR(ins.asOfDate) : '—', sub:'Competência mais recente' },
+    ]);
+  }
+
+  const prazosBody = document.getElementById('appsPrazosBody');
+  if(prazosBody){
+    prazosBody.innerHTML = ins.byLiquidez.length ? ins.byLiquidez.map(b=>`
+      <tr>
+        <td>${escapeHtml(b.label)}</td>
+        <td class="num-col num">${formatBRL(b.value,true)}</td>
+        <td class="num-col num">${(ins.totalSaldo>0? b.value/ins.totalSaldo*100:0).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>
+        <td class="num-col num">${b.count}</td>
+      </tr>`).join('') : `<tr><td colspan="4"><div class="empty-state">Sem dados.</div></td></tr>`;
+  }
+
   body.innerHTML = filtered.length ? filtered.map(f=>`
     <tr>
-      <td>${escapeHtml(f.banco)}</td>
+      <td><div class="bank-name-cell">${bankBadgeHtml(f.banco,22)}<span>${escapeHtml(f.banco)}</span></div></td>
       <td>${escapeHtml(f.fundo)}</td>
       <td>${escapeHtml(f.contaCod||'—')}</td>
       <td class="num">${formatDateBR(f.competencia)}${f.stale?` <span class="kpi-badge warn" title="Sem atualização há ${f.staleDays} dias">desatualizado</span>`:''}</td>
@@ -1451,6 +2450,7 @@ function freshWizardState(){
     parsedRows: [], parseErrorCount: 0,
     appliedSavedMapping: false,
     appsResult: null, appsError: null,
+    knownBankResult: null, knownBankError: null,
   };
 }
 function isApplicationsSource(){ return !!wz && wz.sourceName === APPLICATIONS_SOURCE; }
@@ -1501,8 +2501,10 @@ function closeUploadModal(){ document.getElementById('uploadModal').hidden = tru
 
 function updateWizardChrome(){
   const apps = isApplicationsSource();
+  const knownBank = !!knownBankParser();
+  const skipMapping = apps || knownBank;
   document.querySelectorAll('.step-dot').forEach((el,i)=>{
-    if(apps){
+    if(skipMapping){
       el.style.display = (i===0 || i===3) ? '' : 'none';
       el.classList.toggle('active', i===wz.step);
       el.classList.toggle('done', i===0 && wz.step===3);
@@ -1514,15 +2516,19 @@ function updateWizardChrome(){
   });
   const titles = apps
     ? ['Carregar relatório', '', '', 'Prévia e confirmação']
-    : ['Carregar relatório','Formato dos valores','Mapear colunas','Prévia e confirmação'];
+    : knownBank
+      ? ['Carregar relatório', '', '', 'Prévia e confirmação']
+      : ['Carregar relatório','Formato dos valores','Mapear colunas','Prévia e confirmação'];
   const subs = apps
     ? ['Envie a planilha "Analise Aplicações" (abas CONSOLIDADO e Informações Fundos).', '', '', 'Confira o saldo mais recente de cada fundo antes de salvar.']
-    : [
-      'Envie a planilha de fluxo de caixa exportada do seu sistema.',
-      'Como as entradas e saídas aparecem na sua planilha?',
-      'Diga ao painel onde encontrar cada informação.',
-      'Confira os lançamentos antes de salvar.',
-    ];
+    : knownBank
+      ? ['Envie o extrato exportado do banco — o painel já sabe ler este layout.', '', '', 'Confira os lançamentos antes de salvar.']
+      : [
+        'Envie a planilha de fluxo de caixa exportada do seu sistema.',
+        'Como as entradas e saídas aparecem na sua planilha?',
+        'Diga ao painel onde encontrar cada informação.',
+        'Confira os lançamentos antes de salvar.',
+      ];
   document.getElementById('wizardTitle').textContent = titles[wz.step];
   document.getElementById('wizardSubtitle').textContent = subs[wz.step];
   document.getElementById('wizardBack').hidden = wz.step===0;
@@ -1540,6 +2546,15 @@ function renderWizardStep(){
   if(wz.step===3) return renderStep3(body, nextBtn);
 }
 
+function bankHintText(){
+  if(wz.sourceName === APPLICATIONS_SOURCE){
+    return 'Envie a planilha "Analise Aplicações", com as abas "CONSOLIDADO" e "Informações Fundos" — o painel identifica sozinho o saldo mais recente de cada fundo.';
+  }
+  if(BANK_PARSERS[wz.sourceName]){
+    return 'Este banco tem leitura automática — é só enviar o extrato exportado direto do banco que o painel já reconhece data, valores e lançamentos, sem precisar mapear colunas.';
+  }
+  return 'O layout do relatório muda conforme o banco — por isso cada um guarda seu próprio mapeamento de colunas, lembrado automaticamente da próxima vez que você enviar um arquivo dele.';
+}
 function renderStep0(body, nextBtn){
   const isKnownBank = wz.sourceName && BANKS.includes(wz.sourceName);
   const isApps = wz.sourceName === APPLICATIONS_SOURCE;
@@ -1557,9 +2572,7 @@ function renderStep0(body, nextBtn){
           <option value="${escapeHtml(APPLICATIONS_SOURCE)}" ${isApps?'selected':''}>${escapeHtml(APPLICATIONS_SOURCE)} (fundos)</option>
         </optgroup>
       </select>
-      <div class="field-hint">${isApps
-        ? 'Envie a planilha "Analise Aplicações", com as abas "CONSOLIDADO" e "Informações Fundos" — o painel identifica sozinho o saldo mais recente de cada fundo.'
-        : 'O layout do relatório muda conforme o banco — por isso cada um guarda seu próprio mapeamento de colunas, lembrado automaticamente da próxima vez que você enviar um arquivo dele.'}</div>
+      <div class="field-hint" id="bankHint">${bankHintText()}</div>
     </div>
     <div class="field" id="otherBankField" ${isOther ? '' : 'hidden'}>
       <label for="otherBankInput">Nome do banco/sistema</label>
@@ -1581,12 +2594,18 @@ function renderStep0(body, nextBtn){
       document.getElementById('otherBankField').hidden = true;
     }
     wz.appsResult = null; wz.appsError = null;
+    wz.knownBankResult = null; wz.knownBankError = null;
+    wz.file = null; wz.workbook = null;
+    const hintEl = document.getElementById('bankHint');
+    if(hintEl) hintEl.textContent = bankHintText();
+    const dzEl = document.getElementById('dropzone');
+    if(dzEl) dzEl.innerHTML = `Clique para escolher um arquivo .xlsx / .xls / .csv<br><span class="field-hint">ou arraste e solte aqui</span>`;
     const area = document.getElementById('sheetArea');
     if(area) area.innerHTML = '';
     updateNextEnabled();
   };
   const otherInput = document.getElementById('otherBankInput');
-  if(otherInput) otherInput.oninput = (e)=>{ wz.sourceName = e.target.value; updateNextEnabled(); };
+  if(otherInput) otherInput.oninput = (e)=>{ wz.sourceName = e.target.value; const hintEl=document.getElementById('bankHint'); if(hintEl) hintEl.textContent = bankHintText(); updateNextEnabled(); };
   const dz = document.getElementById('dropzone');
   const input = document.getElementById('fileInput');
   dz.onclick = ()=> input.click();
@@ -1604,6 +2623,7 @@ function renderStep0(body, nextBtn){
 async function handleFile(file){
   wz.file = file;
   wz.appsResult = null; wz.appsError = null;
+  wz.knownBankResult = null; wz.knownBankError = null;
   try{
     wz.workbook = await readWorkbookFile(file);
     wz.sheetNames = wz.workbook.SheetNames;
@@ -1624,6 +2644,24 @@ async function handleFile(file){
       updateNextEnabled();
       return;
     }
+    const parser = knownBankParser();
+    if(parser){
+      try{
+        const result = parser(wz.workbook, wz.sourceName.trim());
+        if(!result.rows.length) throw new Error('no-rows-found');
+        wz.knownBankResult = result;
+        wz.parsedRows = result.rows;
+        wz.parseErrorCount = result.errorCount;
+      }catch(err){
+        console.error(err);
+        wz.knownBankResult = null;
+        wz.knownBankError = 'Não foi possível reconhecer este arquivo como um extrato de ' + wz.sourceName.trim() + '. Confira se é o extrato exportado direto do banco, sem edições.';
+      }
+      renderStep0(document.getElementById('wizardBody'), document.getElementById('wizardNext'));
+      renderKnownBankSummaryArea();
+      updateNextEnabled();
+      return;
+    }
     wz.sheetName = wz.sheetNames[0];
     loadSheetIntoWizard();
     renderStep0(document.getElementById('wizardBody'), document.getElementById('wizardNext'));
@@ -1632,6 +2670,42 @@ async function handleFile(file){
     console.error(err);
     showToast('Não foi possível ler este arquivo. Verifique se é uma planilha Excel válida.', true);
   }
+}
+// Banner reutilizado no passo de resumo (step0) e na prévia final (step3)
+// do assistente de carregamento — mostra as inconsistências encontradas pelo
+// leitor automático, com uma sugestão do que fazer para cada uma. As mesmas
+// issues ficam salvas no histórico e reaparecem na tela "Verificação de
+// Importação" (acesso do financeiro).
+function issuesBannerHtml(issues){
+  if(!issues || !issues.length) return '';
+  return `<div class="issue-banner">
+    <div class="issue-banner-head">&#9888; ${issues.length} inconsistência${issues.length===1?'':'s'} encontrada${issues.length===1?'':'s'} na leitura deste arquivo — o carregamento pode continuar, mas vale revisar:</div>
+    ${issues.map(it=>`
+      <div class="issue-row">
+        <div class="issue-row-msg">${escapeHtml(it.message)}</div>
+        ${it.suggestion ? `<div class="issue-row-suggestion">O que fazer: ${escapeHtml(it.suggestion)}</div>` : ''}
+      </div>`).join('')}
+  </div>`;
+}
+function renderKnownBankSummaryArea(){
+  const area = document.getElementById('sheetArea');
+  if(!area) return;
+  if(wz.knownBankError){
+    area.innerHTML = `<div class="demo-banner" style="margin-top:12px;"><span>&#9888;</span><span>${escapeHtml(wz.knownBankError)}</span></div>`;
+    return;
+  }
+  if(!wz.knownBankResult){ area.innerHTML = ''; return; }
+  const r = wz.knownBankResult;
+  const dates = r.rows.map(x=>x.date).sort();
+  const periodo = dates.length ? `${formatDateBR(dates[0])} a ${formatDateBR(dates[dates.length-1])}` : '—';
+  area.innerHTML = `
+    <div class="kpi-row" style="grid-template-columns:repeat(${r.meta&&r.meta.lastBalance!=null?3:2},1fr);margin:12px 0 0;">
+      <div class="kpi-tile"><div class="kpi-label">Lançamentos encontrados</div><div class="kpi-value num">${r.rows.length}</div></div>
+      <div class="kpi-tile"><div class="kpi-label">Período</div><div class="kpi-value num" style="font-size:15px;">${periodo}</div></div>
+      ${r.meta && r.meta.lastBalance!=null ? `<div class="kpi-tile"><div class="kpi-label">Saldo final do extrato</div><div class="kpi-value num">${formatBRL(r.meta.lastBalance,true)}</div></div>` : ''}
+    </div>
+    <div style="margin-top:12px;">${issuesBannerHtml(r.issues)}</div>
+  `;
 }
 function renderApplicationsSummaryArea(){
   const area = document.getElementById('sheetArea');
@@ -1721,6 +2795,8 @@ function updateNextEnabled(){
   let ok;
   if(isApplicationsSource()){
     ok = !!(wz.appsResult && wz.appsResult.funds.length);
+  } else if(knownBankParser()){
+    ok = !!(wz.knownBankResult && wz.knownBankResult.rows.length);
   } else {
     ok = !!(wz.sourceName && wz.sourceName.trim()) && wz.matrix && wz.sheetName && wz.matrix.length > wz.headerRowIdx+1;
   }
@@ -1918,17 +2994,20 @@ function buildTransactionsFromMapping(){
 }
 
 function renderStep3(body, nextBtn){
-  buildTransactionsFromMapping();
+  const knownBank = knownBankParser();
+  if(!knownBank) buildTransactionsFromMapping();
   const rows = wz.parsedRows;
   const totalIn = rows.filter(r=>r.type==='recebimento').reduce((s,r)=>s+r.value,0);
   const totalOut = rows.filter(r=>r.type==='pagamento').reduce((s,r)=>s+r.value,0);
+  const lastBalance = knownBank && wz.knownBankResult && wz.knownBankResult.meta ? wz.knownBankResult.meta.lastBalance : null;
   body.innerHTML = `
-    <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin:0 0 14px;">
+    <div class="kpi-row" style="grid-template-columns:repeat(${lastBalance!=null?4:3},1fr);margin:0 0 14px;">
       <div class="kpi-tile"><div class="kpi-label">Lançamentos</div><div class="kpi-value num">${rows.length}</div></div>
       <div class="kpi-tile"><div class="kpi-label">Total recebimentos</div><div class="kpi-value num pos">${formatBRL(totalIn)}</div></div>
       <div class="kpi-tile"><div class="kpi-label">Total pagamentos</div><div class="kpi-value num neg">${formatBRL(totalOut)}</div></div>
+      ${lastBalance!=null ? `<div class="kpi-tile"><div class="kpi-label">Saldo final do extrato</div><div class="kpi-value num">${formatBRL(lastBalance,true)}</div></div>` : ''}
     </div>
-    ${wz.parseErrorCount>0 ? `<div class="demo-banner" style="margin-bottom:12px;"><span>&#9888;</span><span>${wz.parseErrorCount} linha(s) ignorada(s) por data ou valor inválido/ausente.</span></div>` : ''}
+    ${knownBank ? issuesBannerHtml(wz.knownBankResult && wz.knownBankResult.issues) : (wz.parseErrorCount>0 ? `<div class="demo-banner" style="margin-bottom:12px;"><span>&#9888;</span><span>${wz.parseErrorCount} linha(s) ignorada(s) por data ou valor inválido/ausente.</span></div>` : '')}
     <div class="preview-table-wrap">
       <table class="preview-table">
         <thead><tr><th>Data</th><th>Tipo</th><th>Status</th><th>Conta</th><th>Categoria</th><th>Descrição</th><th>Valor</th></tr></thead>
@@ -2030,9 +3109,11 @@ async function finishWizard(){
       mapping: mappingToSave, headerSignature: wz.headerSignature,
       rows: wz.parsedRows, fileBase64, fileMime: wz.file.type||'',
     });
-    logUploadHistory({ bank: wz.sourceName.trim(), filename: wz.file.name, status:'concluido', rowCount: wz.parsedRows.length });
+    const knownBankIssues = wz.knownBankResult && wz.knownBankResult.issues;
+    const issuesPayload = (knownBankIssues && knownBankIssues.length) ? JSON.stringify({ issues: knownBankIssues }) : '';
+    logUploadHistory({ bank: wz.sourceName.trim(), filename: wz.file.name, status:'concluido', rowCount: wz.parsedRows.length, errorMessage: issuesPayload });
     closeUploadModal();
-    showToast(`Relatório de "${wz.sourceName.trim()}" carregado: ${wz.parsedRows.length} lançamentos.`);
+    showToast(`Relatório de "${wz.sourceName.trim()}" carregado: ${wz.parsedRows.length} lançamentos.${knownBankIssues && knownBankIssues.length ? ' Algumas inconsistências foram registradas em Verificação de Importação.' : ''}`);
   }catch(err){
     console.error(err);
     const msg = (err && err.code==='forbidden')
@@ -2051,13 +3132,17 @@ function wizardGoNext(){
     if(wz.step===0){ wz.step = 3; renderWizardStep(); return; }
     if(wz.step===3){ finishApplicationsWizard(); return; }
   }
+  if(knownBankParser()){
+    if(wz.step===0){ wz.sourceId = slugifySource(wz.sourceName); wz.step = 3; renderWizardStep(); return; }
+    if(wz.step===3){ finishWizard(); return; }
+  }
   if(wz.step===0){ applySavedMappingForSource(); }
   if(wz.step===3){ finishWizard(); return; }
   wz.step++;
   renderWizardStep();
 }
 function wizardGoBack(){
-  if(isApplicationsSource() && wz.step===3){ wz.step = 0; renderWizardStep(); return; }
+  if((isApplicationsSource() || knownBankParser()) && wz.step===3){ wz.step = 0; renderWizardStep(); return; }
   wz.step--;
   renderWizardStep();
 }
@@ -2115,33 +3200,91 @@ function showToast(msg, isError){
 
 /* ==== INIT ==== */
 function renderAll(){
-  const { accounts, transactions, sources } = activeData();
+  const { accounts, transactions, sources, applications } = activeData();
   document.getElementById('demoBanner').hidden = !state.usingDemo;
 
-  const kpis = computeKPIs(accounts, transactions);
-  renderKPIs(kpis);
+  transactions.forEach(t=>{
+    if(!t.accountId) t.accountId = resolveAccountId(t.account, accounts);
+  });
 
   renderRangeControl();
   const { start, end } = getRangeBounds(currentRangeId, transactions);
   const daily = computeDailySeries(transactions, start, end);
-  renderDailyLegend();
-  drawDailyChart(daily);
-  const cumulative = computeCumulativeSeries(transactions, daily, kpis.totalBalance);
-  drawCumulativeChart(cumulative);
-  renderCategories(transactions, start, end);
+  const currentBankBalance = accounts.filter(a=>a.kind==='conta').reduce((s,a)=>s+(Number(a.balance)||0),0);
+  const cumulative = computeCumulativeSeries(transactions, daily, currentBankBalance);
+  const kpis = computeKPIs(accounts, transactions, start, end, cumulative);
+  const trends = computeKPITrends(transactions, start, end, kpis);
+  renderKPIs(kpis, trends);
 
-  renderAccounts(accounts, kpis);
+  const projectionTitle = document.getElementById('projectionTitle');
+  const projectionPeriod = document.getElementById('projectionPeriod');
+  if(projectionTitle) projectionTitle.textContent = 'Evolução e projeção do caixa';
+  if(projectionPeriod) projectionPeriod.textContent = `${formatDateBR(start)} a ${formatDateBR(end)}`;
+
+  renderDiario(transactions, kpis, start, end);
+  renderProjectionLegend();
+  drawCumulativeChart(cumulative);
+
   renderSources(sources);
+  renderBankPosition(accounts, transactions, start, end);
   renderAccountFilterOptions(accounts, transactions);
-  renderTable(transactions);
+  renderDescMatrix(transactions);
 }
 
 function wireStaticEvents(){
   if(staticEventsWired) return; // evita duplicar listeners se o login acontecer mais de uma vez
   staticEventsWired = true;
-  document.querySelectorAll('#viewTabs [data-view]').forEach(b=>{
+  watchHeaderHeight();
+  document.querySelectorAll('#viewTabs [data-view], #mobileBottomNav [data-view]').forEach(b=>{
     b.onclick = ()=> switchView(b.dataset.view);
   });
+
+  const btnRefresh = document.getElementById('btnRefresh');
+  if(btnRefresh) btnRefresh.onclick = ()=>{
+    if(state.usingDemo){ renderAll(); showToast('Painel atualizado.'); return; }
+    loadData();
+  };
+
+  const pageSizeSel = document.getElementById('movementsPageSize');
+  if(pageSizeSel) pageSizeSel.addEventListener('change', (e)=>{
+    state.descMatrixPageSize = Number(e.target.value) || DESC_MATRIX_PAGE_SIZE;
+    state.descMatrixPage = 1;
+    renderDescMatrix(activeData().transactions);
+  });
+
+  // Dropdowns do cabeçalho (período e avatar) — mesmo padrão de abrir/fechar
+  // do popover de notificações: um botão-gatilho com aria-expanded e um
+  // painel que fecha ao clicar fora ou apertar Esc.
+  function wireHeaderDropdown(triggerId, popId){
+    const trigger = document.getElementById(triggerId);
+    const pop = document.getElementById(popId);
+    if(!trigger || !pop) return;
+    trigger.onclick = (e)=>{
+      e.stopPropagation();
+      const willOpen = pop.hidden;
+      document.querySelectorAll('.header-dropdown-pop').forEach(p=>{ if(p!==pop) p.hidden = true; });
+      document.querySelectorAll('.header-dropdown-trigger').forEach(t=>{ if(t!==trigger) t.setAttribute('aria-expanded','false'); });
+      pop.hidden = !willOpen;
+      trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    };
+    document.addEventListener('click', (e)=>{
+      if(!pop.hidden && !pop.contains(e.target) && e.target!==trigger && !trigger.contains(e.target)){
+        pop.hidden = true;
+        trigger.setAttribute('aria-expanded','false');
+      }
+    });
+  }
+  wireHeaderDropdown('headerRangeTrigger','headerRangePop');
+  wireHeaderDropdown('avatarTrigger','avatarPop');
+
+  const btnBankToggle = document.getElementById('btnBankPositionToggle');
+  if(btnBankToggle) btnBankToggle.onclick = ()=>{
+    state.bankPositionExpanded = !state.bankPositionExpanded;
+    const data = activeData();
+    const range = getRangeBounds(currentRangeId, data.transactions);
+    renderBankPosition(data.accounts, data.transactions, range.start, range.end);
+  };
+
   document.getElementById('histBankFilter').addEventListener('change', (e)=>{
     state.historyBankFilter = e.target.value;
     renderHistory();
@@ -2150,6 +3293,11 @@ function wireStaticEvents(){
   if(appsBankFilterEl) appsBankFilterEl.addEventListener('change', (e)=>{
     state.applicationsBankFilter = e.target.value;
     renderApplications();
+  });
+  const verifBankFilterEl = document.getElementById('verifBankFilter');
+  if(verifBankFilterEl) verifBankFilterEl.addEventListener('change', (e)=>{
+    state.verificationBankFilter = e.target.value;
+    renderVerification();
   });
 
   document.getElementById('btnUpload').onclick = openUploadModal;
@@ -2171,7 +3319,8 @@ function wireStaticEvents(){
     state.filters.tipo = document.getElementById('fTipo').value;
     state.filters.status = document.getElementById('fStatus').value;
     state.filters.conta = document.getElementById('fConta').value;
-    renderTable(activeData().transactions);
+    state.descMatrixPage = 1;
+    renderDescMatrix(activeData().transactions);
   }, 120);
   document.getElementById('fSearch').addEventListener('input', onFilterChange);
   document.getElementById('fTipo').addEventListener('change', onFilterChange);
@@ -2179,7 +3328,9 @@ function wireStaticEvents(){
   document.getElementById('fConta').addEventListener('change', onFilterChange);
 
   document.addEventListener('keydown', e=>{
-    if(e.key==='Escape'){ closeUploadModal(); closeAccountModal(); }
+    if(e.key==='Escape'){
+      closeUploadModal(); closeAccountModal();
+    }
   });
 }
 
