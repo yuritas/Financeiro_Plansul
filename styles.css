@@ -792,35 +792,3 @@
   @media (max-width: 360px){
     .kpi-tile{ flex-basis: 80%; }
   }
-
-/* ==== FASE 2 — RISCO E NECESSIDADE DE CAIXA ==== */
-.cash-risk-row{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:12px;
-  margin:0 0 14px;
-}
-.cash-risk-card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px 16px;
-  display:flex;
-  flex-direction:column;
-  gap:5px;
-  min-width:0;
-}
-.cash-risk-card.ok{border-left:3px solid var(--green, #1f8f5f)}
-.cash-risk-card.danger{border-left:3px solid var(--red, #c64747)}
-.cash-risk-label{
-  color:var(--muted);
-  font-size:12px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.035em;
-}
-.cash-risk-card strong{font-size:20px;line-height:1.25}
-.cash-risk-note{color:var(--muted);font-size:12px;line-height:1.35}
-@media (max-width: 760px){
-  .cash-risk-row{grid-template-columns:1fr}
-}

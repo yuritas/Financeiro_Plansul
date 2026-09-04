@@ -1,7 +1,7 @@
 /* ==== CONFIG & CONSTANTS ==== */
 // Cole aqui a URL do seu Web App do Google Apps Script (termina com /exec).
 // Veja SETUP.md — passo "Implantar como Web App".
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbycMtivGfXTx4pKa3ltR29cY0owrV37fJG0Iy9MVlgg-dE99KuqOc7XgcFe0tjKHQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzhn3VwSmd3DIXNFuKvgIeqtpTk6qdTZKlh1fFyVLxQlTrvrt3WFcFFDtp-rJEzD3lk/exec';
 const MAX_PREVIEW_ROWS = 8;
 // Período do painel = competência (mês-calendário), como nos extratos bancários,
 // em vez de janelas de "N dias atrás / N dias à frente".
@@ -1098,7 +1098,6 @@ const Api = {
     return session;
   },
   getData(){ return callApi('getData', {}); },
-  logout(){ return callApi('logout', {}); },
   saveAccount(account){ return callApi('saveAccount', { account }); },
   deleteAccount(id){ return callApi('deleteAccount', { id }); },
   saveImport(payload){ return callApi('saveImport', payload); },
@@ -1198,19 +1197,7 @@ async function deleteAccount(id){
 // no Drive — carregar um novo arquivo de um banco nunca afeta os outros.
 async function saveImportForSource({ sourceId, sourceName, filename, sheetName, mapping, headerSignature, rows, fileBase64, fileMime }){
   try{
-    const accounts = activeData().accounts || [];
-    const normalizedRows = (rows || []).map((row, index)=>{
-      const accountName = row.account || sourceName || '';
-      const accountId = row.accountId || resolveAccountId(accountName, accounts) || resolveAccountId(sourceName, accounts);
-      return {
-        ...row,
-        id: row.id || `${sourceId}_${row.date || 'semdata'}_${index+1}`,
-        sourceId,
-        account: accountName,
-        accountId,
-      };
-    });
-    await Api.saveImport({ sourceId, sourceName, filename, sheetName, mapping, headerSignature, rows: normalizedRows, fileBase64, fileMime });
+    await Api.saveImport({ sourceId, sourceName, filename, sheetName, mapping, headerSignature, rows, fileBase64, fileMime });
     await loadData();
   }catch(err){ guardSession(err); throw err; }
 }
@@ -1306,8 +1293,7 @@ function wireLoginForm(){
     doLogin(username, password);
   });
   const logoutBtn = document.getElementById('btnLogout');
-  if(logoutBtn) logoutBtn.onclick = async ()=>{
-    try{ await Api.logout(); }catch(e){ /* logout local continua mesmo sem rede */ }
+  if(logoutBtn) logoutBtn.onclick = ()=>{
     clearSession();
     showLoginScreen();
   };
@@ -1340,73 +1326,34 @@ function getRangeBounds(rangeId, transactions){
   return getRangeBounds(currentMonthId(), transactions); // fallback: mês atual
 }
 
-function normalizeAccountMatch(value){
-  return normalizeKeyText(value || '');
-}
-function resolveAccountId(accountValue, accounts){
-  const raw = String(accountValue || '').trim();
-  if(!raw) return '';
-  const byId = accounts.find(a=>String(a.id)===raw);
-  if(byId) return byId.id;
-  const key = normalizeAccountMatch(raw);
-  const byName = accounts.find(a=>normalizeAccountMatch(a.name)===key);
-  return byName ? byName.id : '';
-}
-function transactionAccountId(t, accounts){
-  return t.accountId || resolveAccountId(t.account, accounts);
-}
-function transactionMatchesAccount(t, account, accounts){
-  const tid = transactionAccountId(t, accounts);
-  if(tid) return String(tid)===String(account.id);
-  return normalizeAccountMatch(t.account)===normalizeAccountMatch(account.name);
-}
-
-function computeKPIs(accounts, transactions, startISO, endISO, projectionSeries){
+function computeKPIs(accounts, transactions){
   const today = todayISO();
   const bankBalance = accounts.filter(a=>a.kind==='conta').reduce((s,a)=>s+(Number(a.balance)||0),0);
-  const accountInvestBalance = accounts.filter(a=>a.kind==='aplicacao').reduce((s,a)=>s+(Number(a.balance)||0),0);
-  const appData = activeData().applications;
-  const investBalance = appData && Number.isFinite(Number(appData.totalBalance))
-    ? Number(appData.totalBalance)
-    : accountInvestBalance;
+  const investBalance = accounts.filter(a=>a.kind==='aplicacao').reduce((s,a)=>s+(Number(a.balance)||0),0);
+  const totalBalance = bankBalance + investBalance;
 
   let receivableForecast=0, payableForecast=0, overdueReceivable=0, overduePayable=0;
   let receivedRealizedTotal=0, paidRealizedTotal=0;
   transactions.forEach(t=>{
-    if(t.date < startISO || t.date > endISO) return;
-    const value = Number(t.value)||0;
     if(t.status==='previsto'){
       if(t.type==='recebimento'){
-        receivableForecast += value;
-        if(t.date < today) overdueReceivable += value;
+        receivableForecast += t.value;
+        if(t.date < today) overdueReceivable += t.value;
       } else {
-        payableForecast += value;
-        if(t.date < today) overduePayable += value;
+        payableForecast += t.value;
+        if(t.date < today) overduePayable += t.value;
       }
     } else {
-      if(t.type==='recebimento') receivedRealizedTotal += value;
-      else paidRealizedTotal += value;
+      if(t.type==='recebimento') receivedRealizedTotal += t.value;
+      else paidRealizedTotal += t.value;
     }
   });
-
-  const lastProjection = projectionSeries && projectionSeries.length ? projectionSeries[projectionSeries.length-1].balance : bankBalance;
-  const minPoint = projectionSeries && projectionSeries.length
-    ? projectionSeries.reduce((m,p)=>p.balance<m.balance?p:m, projectionSeries[0])
-    : { date:endISO, balance:bankBalance };
-  const projectedBalance = lastProjection;
-  const liquidityTotal = projectedBalance + investBalance;
-  const cashNeed = Math.max(0, -minPoint.balance);
-
+  const projectedBalance = totalBalance + receivableForecast - payableForecast;
   return {
-    bankBalance, investBalance,
-    totalBalance: bankBalance + investBalance,
-    liquidityTotal,
+    bankBalance, investBalance, totalBalance,
     receivableForecast, payableForecast, projectedBalance,
     overdueReceivable, overduePayable,
     receivedRealizedTotal, paidRealizedTotal,
-    minProjectedBalance: minPoint.balance,
-    minProjectedDate: minPoint.date,
-    cashNeed,
   };
 }
 
@@ -1436,6 +1383,7 @@ function computeKPITrends(transactions, startISO, endISO, k){
 
   const prevBankBalance = k.bankBalance - netCurrentRealized;
   const prevProjectedBalance = k.projectedBalance - netCurrentAll;
+  const prevTotalBalance = prevBankBalance + k.investBalance; // aplicações tratada como constante (sem histórico)
 
   const pct = (curr, prev)=>{
     if(prev===0) return curr===0 ? 0 : null;
@@ -1446,6 +1394,7 @@ function computeKPITrends(transactions, startISO, endISO, k){
     receivedRealizedTotal: pct(k.receivedRealizedTotal, prevReceived),
     paidRealizedTotal: pct(k.paidRealizedTotal, prevPaid),
     projectedBalance: pct(k.projectedBalance, prevProjectedBalance),
+    totalBalance: pct(k.totalBalance, prevTotalBalance),
   };
 }
 
@@ -1529,7 +1478,7 @@ function freshnessPillHtml(asOfDate){
   return `<span class="pill ${fresh?'pill-fresh':'pill-stale'}">${fresh?'Atualizada':'Desatualizada'}</span>`;
 }
 
-function renderBankPosition(accounts, transactions, startISO, endISO){
+function renderBankPosition(accounts, transactions){
   const body = document.getElementById('bankPositionBody');
   const foot = document.getElementById('bankPositionFoot');
   const cards = document.getElementById('bankPositionCards');
@@ -1538,14 +1487,12 @@ function renderBankPosition(accounts, transactions, startISO, endISO){
   if(!body && !cards) return;
   const editable = !state.usingDemo && state.canEdit;
   const kindLabel = { conta:'Conta corrente', aplicacao:'Aplicação' };
-  const sorted = accounts.filter(a=>a.kind==='conta').sort((a,b)=>(a.order??0)-(b.order??0));
+  const sorted = [...accounts].sort((a,b)=>(a.order??0)-(b.order??0));
 
   const allRows = sorted.map(a=>{
     let receivable=0, payable=0;
     transactions.forEach(t=>{
-      if(!transactionMatchesAccount(t, a, accounts) || t.status!=='previsto') return;
-      if(startISO && t.date < startISO) return;
-      if(endISO && t.date > endISO) return;
+      if(t.account!==a.name || t.status!=='previsto') return;
       if(t.type==='recebimento') receivable += t.value; else payable += t.value;
     });
     const projected = (Number(a.balance)||0) + receivable - payable;
@@ -1630,46 +1577,58 @@ function renderBankPosition(accounts, transactions, startISO, endISO){
   }
 }
 
-function computeCumulativeSeries(transactions, dailySeries, currentBankBalance){
+function computeCumulativeSeries(transactions, dailySeries, currentTotalBalance){
   const today = todayISO();
   const dates = dailySeries.map(d=>d.date);
-  if(!dates.length) return [];
-
+  let idxToday = dates.indexOf(today);
+  if(idxToday === -1){
+    // today outside window: clamp to nearest edge
+    idxToday = today < dates[0] ? -1 : dates.length;
+  }
   const realizedNet = {};
-  const forecastNet = {};
-  let overdueForecastNet = 0;
+  const forecastNetToday = {}; // overdue+today previsto folded into 'today'
   transactions.forEach(t=>{
-    const value = Number(t.value)||0;
-    const net = (t.type==='recebimento'?1:-1) * value;
+    const net = (t.type==='recebimento'?1:-1) * t.value;
     if(t.status==='realizado'){
       realizedNet[t.date] = (realizedNet[t.date]||0) + net;
-    } else if(t.status==='previsto'){
-      forecastNet[t.date] = (forecastNet[t.date]||0) + net;
-      if(t.date <= today) overdueForecastNet += net;
+    } else if(t.date <= today){
+      forecastNetToday[today] = (forecastNetToday[today]||0) + net;
+    }
+  });
+  // future forecast net keyed by its own date
+  const forecastNetFuture = {};
+  transactions.forEach(t=>{
+    if(t.status==='previsto' && t.date > today){
+      const net = (t.type==='recebimento'?1:-1) * t.value;
+      forecastNetFuture[t.date] = (forecastNetFuture[t.date]||0) + net;
     }
   });
 
-  function historicalBalanceAt(dateISO){
-    let afterNet = 0;
-    Object.keys(realizedNet).forEach(d=>{
-      if(d > dateISO && d <= today) afterNet += realizedNet[d];
-    });
-    return currentBankBalance - afterNet;
+  const balances = new Array(dates.length).fill(0);
+  if(idxToday >= 0 && idxToday < dates.length){
+    balances[idxToday] = currentTotalBalance + (forecastNetToday[today]||0);
+    for(let i=idxToday+1;i<dates.length;i++){
+      balances[i] = balances[i-1] + (realizedNet[dates[i]]||0) + (forecastNetFuture[dates[i]]||0);
+    }
+    for(let i=idxToday-1;i>=0;i--){
+      balances[i] = balances[i+1] - (realizedNet[dates[i+1]]||0) - (forecastNetFuture[dates[i+1]]||0);
+    }
+  } else if(idxToday < 0){
+    // whole window is in the future
+    let running = currentTotalBalance + (forecastNetToday[today]||0);
+    for(let i=0;i<dates.length;i++){
+      running += (realizedNet[dates[i]]||0) + (forecastNetFuture[dates[i]]||0);
+      balances[i] = running;
+    }
+  } else {
+    // whole window is in the past
+    let running = currentTotalBalance + (forecastNetToday[today]||0);
+    for(let i=dates.length-1;i>=0;i--){
+      balances[i] = running;
+      running -= (realizedNet[dates[i]]||0);
+    }
   }
-
-  function futureBalanceAt(dateISO){
-    let running = currentBankBalance + overdueForecastNet;
-    Object.keys(forecastNet).forEach(d=>{
-      if(d > today && d <= dateISO) running += forecastNet[d];
-    });
-    return running;
-  }
-
-  return dates.map(date=>{
-    if(date < today) return { date, balance: historicalBalanceAt(date), mode:'realizado' };
-    if(date === today) return { date, balance: currentBankBalance + overdueForecastNet, mode:'projetado' };
-    return { date, balance: futureBalanceAt(date), mode:'projetado' };
-  });
+  return dates.map((d,i)=>({ date:d, balance: balances[i] }));
 }
 
 function filteredTransactions(transactions){
@@ -1678,7 +1637,7 @@ function filteredTransactions(transactions){
   return transactions.filter(t=>{
     if(f.tipo && t.type!==f.tipo) return false;
     if(f.status && t.status!==f.status) return false;
-    if(f.conta && t.account!==f.conta && t.accountId!==f.conta) return false;
+    if(f.conta && t.account!==f.conta) return false;
     if(q){
       const hay = `${t.description||''} ${t.account||''} ${t.category||''}`.toLowerCase();
       if(!hay.includes(q)) return false;
@@ -1699,17 +1658,15 @@ function trendHtml(pct){
 function renderKPIs(k, trends){
   const t = trends || {};
   const tiles = [
-    { label:'Saldo bancário', value: formatBRL(k.bankBalance), icon:'bank', iconCls:'', trend: t.bankBalance,
-      sub:'Posição atual das contas correntes' },
-    { label:'Recebimentos realizados', value: formatBRL(k.receivedRealizedTotal), icon:'arrowDownLeft', iconCls:'in', cls:'pos', trend: t.receivedRealizedTotal,
-      sub: `A receber no período: ${formatBRL(k.receivableForecast)}` },
+    { label:'Saldo bancário', value: formatBRL(k.bankBalance), icon:'bank', iconCls:'', trend: t.bankBalance },
+    { label:'Recebimentos', value: formatBRL(k.receivedRealizedTotal), icon:'arrowDownLeft', iconCls:'in', cls:'pos', trend: t.receivedRealizedTotal,
+      sub: `A receber: ${formatBRL(k.receivableForecast)}` },
     { label:'Pagamentos realizados', value: formatBRL(k.paidRealizedTotal), icon:'arrowUpRight', iconCls:'out', cls:'neg', trend: t.paidRealizedTotal,
-      sub: `A pagar no período: ${formatBRL(k.payableForecast)}` },
-    { label:'Saldo bancário projetado', value: formatBRL(k.projectedBalance), icon:'trendingUp', iconCls: k.projectedBalance<0?'out':'in',
-      cls: k.projectedBalance<0?'neg':'pos', trend: t.projectedBalance, sub:'Sem considerar aplicações' },
+      sub: `A pagar: ${formatBRL(k.payableForecast)}` },
+    { label:'Saldo projetado', value: formatBRL(k.projectedBalance), icon:'trendingUp', iconCls: k.projectedBalance<0?'out':'in',
+      cls: k.projectedBalance<0?'neg':'pos', trend: t.projectedBalance },
     { label:'Aplicações', value: formatBRL(k.investBalance), icon:'clock', iconCls:'', sub:'Investimentos e reservas' },
-    { label:'Disponibilidade financeira', value: formatBRL(k.liquidityTotal), icon:'wallet', iconCls:'accent', strong:true,
-      sub:'Saldo projetado + aplicações' },
+    { label:'Saldo total disponível', value: formatBRL(k.totalBalance), icon:'wallet', iconCls:'accent', strong:true, trend: t.totalBalance },
   ];
   document.getElementById('kpiRow').innerHTML = tiles.map(tile=>`
     <div class="kpi-tile">
@@ -1719,27 +1676,6 @@ function renderKPIs(k, trends){
       ${tile.trend!==undefined ? trendHtml(tile.trend) : ''}
       ${tile.sub?`<div class="kpi-sub">${escapeHtml(tile.sub)}</div>`:''}
     </div>`).join('');
-
-  const risk = document.getElementById('cashRiskRow');
-  if(risk){
-    const need = k.cashNeed > 0;
-    risk.innerHTML = `
-      <div class="cash-risk-card ${k.minProjectedBalance<0?'danger':'ok'}">
-        <span class="cash-risk-label">Menor saldo projetado</span>
-        <strong class="num ${k.minProjectedBalance<0?'neg':'pos'}">${formatBRL(k.minProjectedBalance)}</strong>
-        <span class="cash-risk-note">Menor posição bancária no período selecionado</span>
-      </div>
-      <div class="cash-risk-card">
-        <span class="cash-risk-label">Data crítica</span>
-        <strong>${formatDateBR(k.minProjectedDate)}</strong>
-        <span class="cash-risk-note">${need?'Data do menor saldo e referência para cobertura':'Menor ponto de caixa do período'}</span>
-      </div>
-      <div class="cash-risk-card ${need?'danger':'ok'}">
-        <span class="cash-risk-label">Necessidade de Caixa</span>
-        <strong class="num ${need?'neg':'pos'}">${formatBRL(k.cashNeed)}</strong>
-        <span class="cash-risk-note">${need?'Valor mínimo para evitar saldo bancário negativo':'Não há insuficiência projetada no período'}</span>
-      </div>`;
-  }
 }
 
 /* ==== RENDER: CHARTS ==== */
@@ -3203,30 +3139,20 @@ function renderAll(){
   const { accounts, transactions, sources, applications } = activeData();
   document.getElementById('demoBanner').hidden = !state.usingDemo;
 
-  transactions.forEach(t=>{
-    if(!t.accountId) t.accountId = resolveAccountId(t.account, accounts);
-  });
-
+  const kpis = computeKPIs(accounts, transactions);
   renderRangeControl();
   const { start, end } = getRangeBounds(currentRangeId, transactions);
-  const daily = computeDailySeries(transactions, start, end);
-  const currentBankBalance = accounts.filter(a=>a.kind==='conta').reduce((s,a)=>s+(Number(a.balance)||0),0);
-  const cumulative = computeCumulativeSeries(transactions, daily, currentBankBalance);
-  const kpis = computeKPIs(accounts, transactions, start, end, cumulative);
   const trends = computeKPITrends(transactions, start, end, kpis);
   renderKPIs(kpis, trends);
 
-  const projectionTitle = document.getElementById('projectionTitle');
-  const projectionPeriod = document.getElementById('projectionPeriod');
-  if(projectionTitle) projectionTitle.textContent = 'Evolução e projeção do caixa';
-  if(projectionPeriod) projectionPeriod.textContent = `${formatDateBR(start)} a ${formatDateBR(end)}`;
-
   renderDiario(transactions, kpis, start, end);
   renderProjectionLegend();
+  const daily = computeDailySeries(transactions, start, end);
+  const cumulative = computeCumulativeSeries(transactions, daily, kpis.totalBalance);
   drawCumulativeChart(cumulative);
 
   renderSources(sources);
-  renderBankPosition(accounts, transactions, start, end);
+  renderBankPosition(accounts, transactions);
   renderAccountFilterOptions(accounts, transactions);
   renderDescMatrix(transactions);
 }
@@ -3280,9 +3206,7 @@ function wireStaticEvents(){
   const btnBankToggle = document.getElementById('btnBankPositionToggle');
   if(btnBankToggle) btnBankToggle.onclick = ()=>{
     state.bankPositionExpanded = !state.bankPositionExpanded;
-    const data = activeData();
-    const range = getRangeBounds(currentRangeId, data.transactions);
-    renderBankPosition(data.accounts, data.transactions, range.start, range.end);
+    renderBankPosition(activeData().accounts, activeData().transactions);
   };
 
   document.getElementById('histBankFilter').addEventListener('change', (e)=>{
