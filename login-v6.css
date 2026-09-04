@@ -1,0 +1,214 @@
+/* Plansul — V6 Login
+ * Login leve, responsivo e inspirado no layout vertical aprovado.
+ * Mantém o wordmark institucional existente. */
+#loginOverlay{
+  position:fixed!important;
+  inset:0!important;
+  z-index:3000!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  padding:28px 20px!important;
+  overflow:auto!important;
+  background:
+    radial-gradient(circle at 12% 15%,rgba(46,208,187,.34),transparent 34%),
+    radial-gradient(circle at 88% 88%,rgba(34,108,181,.30),transparent 38%),
+    linear-gradient(135deg,#063947 0%,#08717b 46%,#165e8d 100%)!important;
+  backdrop-filter:none!important;
+}
+#loginOverlay[hidden]{display:none!important}
+#loginOverlay::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(120deg,rgba(255,255,255,.08),transparent 34%,rgba(255,255,255,.025)),
+    radial-gradient(circle at 50% -15%,rgba(255,255,255,.12),transparent 42%);
+}
+#loginOverlay .login-card{
+  position:relative!important;
+  width:min(100%,430px)!important;
+  max-width:430px!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:visible!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  color:#fff!important;
+}
+#loginOverlay .modal-head{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  text-align:center!important;
+  padding:0 6px 42px!important;
+  border:0!important;
+  background:transparent!important;
+}
+#loginOverlay .login-logo{
+  display:block!important;
+  width:min(270px,76vw)!important;
+  height:auto!important;
+  max-height:none!important;
+  object-fit:contain!important;
+  padding:13px 18px!important;
+  margin:0 auto 24px!important;
+  border-radius:16px!important;
+  background:rgba(255,255,255,.97)!important;
+  box-shadow:0 14px 34px -22px rgba(0,0,0,.55)!important;
+}
+#loginOverlay .modal-head h2{
+  margin:0!important;
+  font-size:clamp(25px,5vw,32px)!important;
+  line-height:1.08!important;
+  font-weight:700!important;
+  letter-spacing:-.03em!important;
+  color:#fff!important;
+}
+#loginOverlay .modal-head p{
+  margin:10px 0 0!important;
+  max-width:340px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+  color:rgba(255,255,255,.76)!important;
+}
+#loginOverlay .modal-body{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:27px!important;
+  padding:0!important;
+  background:transparent!important;
+}
+#loginOverlay .field{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:7px!important;
+  margin:0!important;
+}
+#loginOverlay .field label{
+  margin:0!important;
+  font-size:11px!important;
+  line-height:1.2!important;
+  font-weight:700!important;
+  letter-spacing:.09em!important;
+  text-transform:uppercase!important;
+  color:rgba(255,255,255,.88)!important;
+}
+#loginOverlay .field input[type="text"],
+#loginOverlay .field input[type="password"]{
+  width:100%!important;
+  height:48px!important;
+  min-height:48px!important;
+  padding:4px 2px 9px!important;
+  box-sizing:border-box!important;
+  border:0!important;
+  border-bottom:1.5px solid rgba(255,255,255,.58)!important;
+  border-radius:0!important;
+  outline:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  color:#fff!important;
+  caret-color:#fff!important;
+  font:500 17px/1.25 'IBM Plex Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif!important;
+  transition:border-color .16s ease,background .16s ease!important;
+}
+#loginOverlay .field input::placeholder{
+  color:rgba(255,255,255,.43)!important;
+  opacity:1!important;
+}
+#loginOverlay .field input:focus{
+  border-bottom-color:#fff!important;
+  background:linear-gradient(180deg,transparent,rgba(255,255,255,.055))!important;
+}
+#loginOverlay .login-error{
+  margin:3px 0 -8px!important;
+  padding:10px 12px!important;
+  border:1px solid rgba(255,205,205,.24)!important;
+  border-radius:10px!important;
+  background:rgba(111,14,20,.30)!important;
+  color:#ffe4e4!important;
+  font-size:12px!important;
+  line-height:1.4!important;
+}
+#loginOverlay .modal-foot{
+  display:block!important;
+  padding:38px 0 0!important;
+  border:0!important;
+  background:transparent!important;
+}
+#loginOverlay #loginSubmit{
+  width:100%!important;
+  min-height:54px!important;
+  padding:0 24px!important;
+  border:1px solid rgba(255,255,255,.68)!important;
+  border-radius:999px!important;
+  background:#fff!important;
+  color:#075b73!important;
+  box-shadow:0 16px 36px -24px rgba(0,0,0,.62)!important;
+  font-size:14px!important;
+  font-weight:800!important;
+  letter-spacing:.035em!important;
+  text-transform:uppercase!important;
+  cursor:pointer!important;
+  transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease!important;
+}
+#loginOverlay #loginSubmit:hover{transform:translateY(-1px)!important;box-shadow:0 18px 40px -23px rgba(0,0,0,.66)!important}
+#loginOverlay #loginSubmit:active{transform:translateY(0)!important}
+#loginOverlay #loginSubmit:disabled{opacity:.68!important;cursor:wait!important}
+
+/* Desktop: mantém a proposta limpa sem deixar o formulário perdido em telas largas. */
+@media(min-width:761px){
+  #loginOverlay .login-card{
+    padding:38px 42px 42px!important;
+    border:1px solid rgba(255,255,255,.14)!important;
+    border-radius:24px!important;
+    background:rgba(4,43,56,.18)!important;
+    box-shadow:0 32px 80px -42px rgba(0,0,0,.72)!important;
+    backdrop-filter:blur(8px)!important;
+  }
+  #loginOverlay .modal-head{padding-bottom:36px!important}
+}
+
+/* Mobile: linguagem mais próxima da referência — fundo pleno e conteúdo vertical. */
+@media(max-width:760px){
+  #loginOverlay{
+    align-items:flex-start!important;
+    padding:max(52px,8vh) 28px 36px!important;
+  }
+  #loginOverlay .login-card{width:min(100%,390px)!important}
+  #loginOverlay .modal-head{padding:0 0 min(12vh,78px)!important}
+  #loginOverlay .login-logo{
+    width:min(245px,72vw)!important;
+    padding:11px 15px!important;
+    margin-bottom:22px!important;
+    border-radius:14px!important;
+  }
+  #loginOverlay .modal-head h2{font-size:25px!important}
+  #loginOverlay .modal-head p{font-size:12.5px!important}
+  #loginOverlay .modal-body{gap:30px!important}
+  #loginOverlay .modal-foot{padding-top:46px!important}
+}
+@media(max-width:390px){
+  #loginOverlay{padding-left:22px!important;padding-right:22px!important}
+  #loginOverlay .modal-head{padding-bottom:54px!important}
+  #loginOverlay .login-logo{width:min(225px,75vw)!important}
+}
+
+/* O tema mobile selecionado continua respeitado também no login. */
+@media(max-width:760px){
+  html[data-mobile-theme="dark"] #loginOverlay{
+    background:
+      radial-gradient(circle at 18% 12%,rgba(28,166,171,.22),transparent 34%),
+      radial-gradient(circle at 88% 86%,rgba(29,95,155,.22),transparent 38%),
+      linear-gradient(145deg,#05131b 0%,#07313c 52%,#0a334d 100%)!important;
+  }
+  html[data-mobile-theme="clean"] #loginOverlay{
+    background:
+      radial-gradient(circle at 14% 12%,rgba(60,223,197,.34),transparent 34%),
+      radial-gradient(circle at 88% 86%,rgba(48,125,201,.30),transparent 38%),
+      linear-gradient(135deg,#0a5365 0%,#0a7d83 47%,#1c69a0 100%)!important;
+  }
+}
