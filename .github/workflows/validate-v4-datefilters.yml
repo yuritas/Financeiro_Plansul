@@ -19,7 +19,8 @@ jobs:
           node --check fluxo-v4-datefilters.js
           node --check fluxo-v4.js
           node --check fluxo-v4-ui.js
-          node --check apps-script/Code.gs
+          cp apps-script/Code.gs /tmp/Code-check.js
+          node --check /tmp/Code-check.js
       - name: Cleanup temporary validation files
         run: |
           rm -f .validate-v4-datefilters .github/workflows/validate-v4-datefilters.yml
