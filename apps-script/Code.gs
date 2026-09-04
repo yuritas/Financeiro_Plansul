@@ -67,6 +67,10 @@ function doPost(e){
         requireSessionRole(body.token, 'financeiro');
         result = doDeleteSource(body.sourceId);
         break;
+      case 'deleteHistory':
+        requireSessionRole(body.token, 'financeiro');
+        result = doDeleteHistory(body.id);
+        break;
       case 'logHistory':
         requireSessionRole(body.token, 'financeiro');
         result = doLogHistory(body);
@@ -230,6 +234,8 @@ function readSources(){
       id: String(row[0]), sourceName: String(row[1]||''), filename: String(row[2]||''),
       sheetName: String(row[3]||''), mapping, headerSignature: String(row[5]||''),
       rowCount: Number(row[6])||0, uploadedAt: formatDateValue(row[7]),
+      periodStart: formatDateValue(row[8]), periodEnd: formatDateValue(row[9]),
+      closingBalance: (row[10]==='' || row[10]===null || row[10]===undefined) ? null : Number(row[10]),
     });
   }
   return out;
@@ -316,6 +322,8 @@ function readHistory(){
       id: String(row[0]), bank: String(row[1]||''), filename: String(row[2]||''),
       status: String(row[3]||''), rowCount: Number(row[4])||0,
       errorMessage: String(row[5]||''), at: formatDateValue(row[6]),
+      periodStart: formatDateValue(row[7]), periodEnd: formatDateValue(row[8]),
+      sourceId: String(row[9]||''),
     });
   }
   out.sort((a,b)=> a.at < b.at ? 1 : -1);
@@ -419,10 +427,15 @@ function doSaveImport(body){
       const data = sheet.getDataRange().getValues();
       let rowIndex = -1;
       for(let i=1;i<data.length;i++){ if(String(data[i][0])===String(sourceId)){ rowIndex = i+1; break; } }
+      const importDates = normalizedRows.map(r=>String(r.date||'')).filter(Boolean).sort();
+      const detectedStart = importDates.length ? importDates[0] : '';
+      const detectedEnd = importDates.length ? importDates[importDates.length-1] : '';
       const values = [
         sourceId, body.sourceName||'', body.filename||'', body.sheetName||'',
         JSON.stringify(body.mapping||{}), body.headerSignature||'',
         normalizedRows.length, new Date().toISOString(),
+        detectedStart, detectedEnd,
+        (body.closingBalance===null || body.closingBalance===undefined || body.closingBalance==='') ? '' : Number(body.closingBalance),
       ];
       if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
       else sheet.appendRow(values);
@@ -519,8 +532,19 @@ function doLogHistory(body){
   sheet.appendRow([
     Utilities.getUuid(), body.bank||'', body.filename||'', body.status||'',
     Number(body.rowCount)||0, body.errorMessage||'', new Date().toISOString(),
+    body.periodStart||'', body.periodEnd||'', body.sourceId||'',
   ]);
   pruneHistory(sheet);
+  return {};
+}
+
+function doDeleteHistory(id){
+  if(!id) throw mkError('invalid_argument', 'id do histórico ausente');
+  const sheet = getSheet(SHEET_HISTORY);
+  const data = sheet.getDataRange().getValues();
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0])===String(id)){ sheet.deleteRow(i+1); return {}; }
+  }
   return {};
 }
 
@@ -600,8 +624,8 @@ function setupSpreadsheet(){
   const ss = getSS();
   ensureSheet(ss, SHEET_USERS, ['username','salt','passwordHash','role','nome','tentativasFalhas','bloqueadoAte']);
   ensureSheet(ss, SHEET_ACCOUNTS, ['id','name','kind','balance','asOfDate','order','updatedAt']);
-  ensureSheet(ss, SHEET_SOURCES, ['id','sourceName','filename','sheetName','mappingJSON','headerSignature','rowCount','uploadedAt']);
-  ensureSheet(ss, SHEET_HISTORY, ['id','bank','filename','status','rowCount','errorMessage','at']);
+  ensureSheet(ss, SHEET_SOURCES, ['id','sourceName','filename','sheetName','mappingJSON','headerSignature','rowCount','uploadedAt','periodStart','periodEnd','closingBalance']);
+  ensureSheet(ss, SHEET_HISTORY, ['id','bank','filename','status','rowCount','errorMessage','at','periodStart','periodEnd','sourceId']);
   ensureSheet(ss, SHEET_APPLICATIONS, ['id','banco','fundo','contaCod','competencia','saldoInicial','aplicacoes','rendimentos','imposto','resgate','saldoFinal','rendimentosPct','cotizacaoResgate','garantia','vinculo','indexador','updatedAt']);
   getRootFolder(); // já cria a pasta do Drive também
   SpreadsheetApp.getUi().alert('Planilha configurada! Agora use "Plansul > Criar novo usuário" para cadastrar o financeiro e os diretores.');
@@ -609,13 +633,10 @@ function setupSpreadsheet(){
 
 function ensureSheet(ss, name, headers){
   let sheet = ss.getSheetByName(name);
-  if(!sheet){
-    sheet = ss.insertSheet(name);
-  }
-  if(sheet.getLastRow() === 0){
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sheet.setFrozenRows(1);
-  }
+  if(!sheet) sheet = ss.insertSheet(name);
+  // Mantém o cabeçalho sincronizado quando novas colunas são adicionadas em upgrades.
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
 }
 
 // Pede usuário + papel + senha nova e grava (ou atualiza) a linha correspondente
