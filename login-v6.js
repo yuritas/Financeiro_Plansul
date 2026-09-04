@@ -16,4 +16,26 @@
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',prepareLogin,{once:true});
   else prepareLogin();
+
+  function keepVisibleSurface(){
+    const overlay=document.getElementById('loginOverlay');
+    const app=document.getElementById('app');
+    if(!overlay || !app) return;
+    if(app.hidden){
+      if(overlay.hidden) overlay.hidden=false;
+    }else if(!overlay.hidden){
+      overlay.hidden=true;
+    }
+  }
+  function installRecovery(){
+    keepVisibleSurface();
+    const app=document.getElementById('app');
+    if(app) new MutationObserver(keepVisibleSurface).observe(app,{attributes:true,attributeFilter:['hidden']});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',installRecovery,{once:true});
+  else installRecovery();
+  window.addEventListener('error',()=>setTimeout(keepVisibleSurface,0));
+  window.addEventListener('unhandledrejection',()=>setTimeout(keepVisibleSurface,0));
+  setTimeout(keepVisibleSurface,250);
+  setTimeout(keepVisibleSurface,1200);
 })();
