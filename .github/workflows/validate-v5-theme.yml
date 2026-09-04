@@ -1,0 +1,34 @@
+name: Validate V5 mobile theme
+on:
+  push:
+    paths:
+      - '.validate-v5-theme'
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Validate JavaScript
+        run: |
+          node --check app.js
+          node --check fluxo-v5-theme.js
+      - name: Validate theme assets
+        run: |
+          test -s fluxo-v5-theme.css
+          grep -q 'data-mobile-theme="dark"' fluxo-v5-theme.css
+          grep -q 'data-mobile-theme="clean"' fluxo-v5-theme.css
+          grep -q 'plansul-wordmark.png' index.html
+          grep -q 'plansul-wordmark.png' diretoria.html
+      - name: Cleanup temporary validation files
+        run: |
+          rm -f .validate-v5-theme .github/workflows/validate-v5-theme.yml
+          git config user.name 'Plansul'
+          git config user.email 'yuritas.pessoal@gmail.com'
+          git add -A
+          git commit -m 'chore: conclui validação V5'
+          git push origin HEAD:${{ github.ref_name }}
