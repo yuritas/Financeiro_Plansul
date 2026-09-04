@@ -1,140 +1,26 @@
-name: Hotfix login bootstrap
+name: HotfixLogin
 on:
   push:
     paths:
-      - '.hotfix-login/ready'
-permissions:
-  contents: write
+      - '.hotfix-login/ready2'
 jobs:
   apply:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: v6-login-performance-visual
-      - name: Patch bootstrap
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          # 1) app-core: expõe boot e permite ao bootstrap atrasar a inicialização
-          p = Path('app-core.js')
-          s = p.read_text(encoding='utf-8')
-          old = "if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);\nelse boot();"
-          new = "window.PlansulBoot = boot;\nif(!window.__PLANSUL_DEFER_BOOT__){\n  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);\n  else boot();\n}"
-          if old not in s:
-              raise SystemExit('Bloco de boot esperado não encontrado em app-core.js')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
-
-          # 2) app.js: troca document.write síncrono por carregamento sequencial assíncrono.
-          p = Path('app.js')
-          s = p.read_text(encoding='utf-8')
-          marker = '(function(){\n'
-          if marker not in s:
-              raise SystemExit('IIFE de app.js não encontrada')
-          s = s.replace(marker, marker + "  window.__PLANSUL_DEFER_BOOT__ = true;\n", 1)
-
-          paths = re.findall(r"document\.write\('<script src=\\\"([^\\\"]+)\\\"", s)
-          if len(paths) < 5:
-              raise SystemExit(f'Esperava módulos via document.write; encontrados {len(paths)}')
-          s = re.sub(r"^\s*document\.write\([^\n]+\);\n?", '', s, flags=re.M)
-
-          loader = """
-  const moduleScripts = %s;
-  function loadPlansulModule(src){
-    return new Promise((resolve,reject)=>{
-      const el=document.createElement('script');
-      el.src=src;
-      el.async=false;
-      el.onload=()=>resolve(src);
-      el.onerror=()=>reject(new Error('Falha ao carregar '+src));
-      document.head.appendChild(el);
-    });
-  }
-  async function startPlansulModules(){
-    // Duplo rAF: libera a primeira pintura para o login antes dos módulos pesados.
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    try{
-      for(const src of moduleScripts) await loadPlansulModule(src);
-      if(typeof window.PlansulBoot==='function') window.PlansulBoot();
-    }catch(err){
-      console.error('Falha no bootstrap Plansul:',err);
-      // Se o núcleo já carregou, ainda habilita autenticação em modo degradado.
-      if(typeof window.PlansulBoot==='function'){
-        try{ window.PlansulBoot(); }catch(e){ console.error(e); }
-      }
-      const overlay=document.getElementById('loginOverlay');
-      const app=document.getElementById('app');
-      if(overlay && (!app || app.hidden)) overlay.hidden=false;
-      const error=document.getElementById('loginError');
-      if(error && typeof window.PlansulBoot!=='function'){
-        error.textContent='Não foi possível carregar todos os componentes. Atualize a página e tente novamente.';
-        error.hidden=false;
-      }
-    }
-  }
-  startPlansulModules();
-""" % repr(paths)
-          idx = s.rfind('})();')
-          if idx < 0:
-              raise SystemExit('Fim da IIFE de app.js não encontrado')
-          s = s[:idx] + loader + s[idx:]
-          p.write_text(s, encoding='utf-8')
-
-          # 3) Proteção visual: nunca permitir app e login ocultos simultaneamente.
-          p = Path('login-v6.js')
-          s = p.read_text(encoding='utf-8')
-          needle = "  else prepareLogin();\n})();"
-          replacement = """  else prepareLogin();
-
-  function keepVisibleSurface(){
-    const overlay=document.getElementById('loginOverlay');
-    const app=document.getElementById('app');
-    if(!overlay || !app) return;
-    if(app.hidden){
-      if(overlay.hidden) overlay.hidden=false;
-    }else if(!overlay.hidden){
-      overlay.hidden=true;
-    }
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{
-    keepVisibleSurface();
-    const app=document.getElementById('app');
-    if(app) new MutationObserver(keepVisibleSurface).observe(app,{attributes:true,attributeFilter:['hidden']});
-  },{once:true});
-  else {
-    keepVisibleSurface();
-    const app=document.getElementById('app');
-    if(app) new MutationObserver(keepVisibleSurface).observe(app,{attributes:true,attributeFilter:['hidden']});
-  }
-  window.addEventListener('error',()=>setTimeout(keepVisibleSurface,0));
-  window.addEventListener('unhandledrejection',()=>setTimeout(keepVisibleSurface,0));
-  setTimeout(keepVisibleSurface,250);
-  setTimeout(keepVisibleSurface,1200);
-})();"""
-          if needle not in s:
-              raise SystemExit('Ponto de extensão de login-v6.js não encontrado')
-          p.write_text(s.replace(needle, replacement, 1), encoding='utf-8')
-          PY
-
-          node --check app.js
-          node --check app-core.js
-          node --check login-v6.js
-          if grep -q 'document.write' app.js; then
-            echo 'document.write ainda presente no app.js' >&2
-            exit 1
-          fi
-
-      - name: Commit hotfix
-        shell: bash
-        run: |
+      - run: python3 .hotfix-login/patch.py
+      - run: node --check app.js && node --check app-core.js && node --check login-v6.js
+      - run: |
+          if grep -q 'document.write' app.js; then exit 1; fi
+      - run: |
           rm -rf .hotfix-login
           rm -f .github/workflows/hotfix-login-bootstrap.yml
-          git config user.name 'Plansul'
-          git config user.email 'yuritas.pessoal@gmail.com'
-          git add app.js app-core.js login-v6.js .github/workflows/hotfix-login-bootstrap.yml .hotfix-login || true
-          git add -u
+          git config user.name Plansul
+          git config user.email yuritas.pessoal@gmail.com
+          git add -A
           git commit -m 'fix: libera renderização imediata do login'
           git push origin HEAD:v6-login-performance-visual
