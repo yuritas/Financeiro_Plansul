@@ -10,11 +10,12 @@
     else if(input instanceof Request && input.url === OLD_ENDPOINT) input = new Request(NEW_ENDPOINT, input);
     return nativeFetch(input, init);
   };
-  ['login-fix.css','tesouraria-v3.css'].forEach(href=>{
+  ['login-fix.css','tesouraria-v3.css','fluxo-v4.css'].forEach(href=>{
     const css=document.createElement('link'); css.rel='stylesheet'; css.href=href; document.head.appendChild(css);
   });
   document.write('<script src="app-core.js"><\/script>');
   document.write('<script src="competencias-aplicacoes.js"><\/script>');
   document.write('<script src="competencias-wizard.js"><\/script>');
   document.write('<script src="tesouraria-v3.js"><\/script>');
+  document.write('<script src="fluxo-v4.js"><\/script>');
 })();
