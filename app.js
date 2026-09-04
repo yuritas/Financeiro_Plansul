@@ -13,8 +13,8 @@
   ['login-fix.css','tesouraria-v3.css'].forEach(href=>{
     const css=document.createElement('link'); css.rel='stylesheet'; css.href=href; document.head.appendChild(css);
   });
-  document.write('<script src="app-core.js"><\\/script>');
-  document.write('<script src="competencias-aplicacoes.js"><\\/script>');
-  document.write('<script src="competencias-wizard.js"><\\/script>');
-  document.write('<script src="tesouraria-v3.js"><\\/script>');
+  document.write('<script src="app-core.js"><\/script>');
+  document.write('<script src="competencias-aplicacoes.js"><\/script>');
+  document.write('<script src="competencias-wizard.js"><\/script>');
+  document.write('<script src="tesouraria-v3.js"><\/script>');
 })();
