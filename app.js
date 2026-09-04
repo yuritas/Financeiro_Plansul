@@ -20,4 +20,5 @@
   // preservando o ciclo de inicialização original do painel.
   document.write('<script src="app-core.js"><\/script>');
   document.write('<script src="competencias-aplicacoes.js"><\/script>');
+  document.write('<script src="competencias-wizard.js"><\/script>');
 })();
