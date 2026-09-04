@@ -1,0 +1,14 @@
+.apps-fund-cards{display:none}
+@media(max-width:760px){
+  #appsTable{display:none!important}
+  #appsTableBody{display:none!important}
+  #appsDetailTitle{margin-bottom:4px}
+  .apps-fund-cards{display:flex;flex-direction:column;gap:9px;margin-top:8px}
+  .apps-fund-card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px;box-shadow:0 3px 12px rgba(19,52,67,.05)}
+  .apps-fund-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .apps-fund-head>div{min-width:0}.apps-fund-head b{display:block;font-size:13px;color:var(--ink);overflow-wrap:anywhere}.apps-fund-head span{display:block;margin-top:2px;font-size:11px;color:var(--ink-muted)}
+  .apps-fund-head strong{font-size:17px;text-align:right;white-space:nowrap}
+  .apps-fund-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px;padding-top:10px}
+  .apps-fund-grid>div{min-width:0}.apps-fund-grid span{display:block;font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.03em}.apps-fund-grid b{display:block;margin-top:2px;font-size:12px;overflow-wrap:anywhere}
+  .apps-fund-card .periodic-fund-badge{margin-top:10px}
+}
