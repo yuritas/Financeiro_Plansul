@@ -17,7 +17,7 @@
 <div class="modal-overlay" id="loginOverlay">
   <div class="modal login-card">
     <div class="modal-head">
-      <img class="login-logo" src="assets/plansul-logo-oficial.png" alt="Plansul — Nossa melhor referência">
+      <img class="login-logo" src="assets/plansul-wordmark.png" alt="Plansul — Nossa melhor referência">
       <h2>Fluxo de Caixa Plansul</h2>
       <p>Acesso da equipe financeira — carregar relatórios e editar contas.</p>
     </div>
@@ -43,7 +43,7 @@
     <div class="topbar-inner">
       <div class="topbar-row-1">
         <div class="brand">
-          <img class="brand-logo" src="assets/plansul-logo-oficial.png" alt="Plansul — Nossa melhor referência">
+          <img class="brand-logo" src="assets/plansul-wordmark.png" alt="Plansul — Nossa melhor referência">
           <span class="brand-divider" aria-hidden="true"></span>
           <div class="brand-text">
             <h1>Fluxo de Caixa</h1>
@@ -117,10 +117,15 @@
 
   <div id="dashboardView">
   <section class="kpi-row" id="kpiRow"></section>
+  <section class="cash-risk-row" id="cashRiskRow" aria-label="Risco e necessidade de caixa"></section>
 
   <div class="card chart-card">
     <div class="card-head">
-      <h2>Projeção de caixa — próximos 30 dias</h2>
+      <div>
+        <h2 id="projectionTitle">Evolução e projeção do caixa</h2>
+        <p class="card-description">Saldo bancário diário, sem considerar aplicações financeiras.</p>
+      </div>
+      <span class="matrix-period" id="projectionPeriod"></span>
     </div>
     <div class="chart-legend" id="dailyLegend"></div>
     <div class="chart-wrap" id="cumChartWrap">
@@ -133,7 +138,7 @@
     <div class="card-head">
       <div>
         <h2 id="bankPositionTitle">Posição por banco</h2>
-        <p class="card-description">Saldo atual, valores a receber/pagar e saldo projetado de cada conta.</p>
+        <p class="card-description">Saldo atual, valores previstos no período e saldo bancário projetado de cada conta.</p>
       </div>
       <div class="bank-position-actions">
         <button class="btn btn-small" id="btnAddAccount" hidden>+ Conta</button>
