@@ -48,6 +48,9 @@ function doPost(e){
         requireSession(body.token);
         result = doGetData();
         break;
+      case 'logout':
+        result = doLogout(body.token);
+        break;
       case 'saveAccount':
         requireSessionRole(body.token, 'financeiro');
         result = doSaveAccount(body.account || {});
@@ -112,10 +115,14 @@ function requireSessionRole(token, role){
   if(sess.role !== role) throw mkError('forbidden');
   return sess;
 }
+function doLogout(token){
+  if(token) CacheService.getScriptCache().remove('sess_' + token);
+  return {};
+}
 
 /* ==== LOGIN & SENHAS ==== */
-// Senhas nunca ficam em texto puro: guardamos apenas um hash SHA-256 salgado
-// por usuário. Use o menu "Plansul > Definir senha de usuário" na planilha
+// Senhas nunca ficam em texto puro. Novas senhas usam derivação iterativa
+// SHA-256 com salt e versão; hashes legados são atualizados no login. Use o menu "Plansul > Definir senha de usuário" na planilha
 // para cadastrar ou trocar uma senha — nunca digite a senha diretamente
 // nesta planilha.
 function sha256Hex(str){
@@ -124,6 +131,25 @@ function sha256Hex(str){
     const v = (b < 0 ? b + 256 : b).toString(16);
     return v.length===1 ? '0'+v : v;
   }).join('');
+}
+const PASSWORD_HASH_ITERATIONS = 4000;
+function derivePasswordHash(salt, password, iterations){
+  const rounds = Math.max(1, Number(iterations)||PASSWORD_HASH_ITERATIONS);
+  let h = sha256Hex(salt + ':' + password);
+  for(let i=1;i<rounds;i++) h = sha256Hex(salt + ':' + h);
+  return h;
+}
+function makePasswordHash(salt, password){
+  return 'v2$' + PASSWORD_HASH_ITERATIONS + '$' + derivePasswordHash(salt, password, PASSWORD_HASH_ITERATIONS);
+}
+function verifyPasswordHash(salt, password, stored){
+  const text = String(stored||'');
+  if(text.indexOf('v2$')===0){
+    const parts = text.split('$');
+    const rounds = Number(parts[1])||PASSWORD_HASH_ITERATIONS;
+    return derivePasswordHash(salt, password, rounds) === String(parts[2]||'');
+  }
+  return sha256Hex(salt + ':' + password) === text;
 }
 
 function doLogin(username, password){
@@ -140,10 +166,9 @@ function doLogin(username, password){
 
     const salt = String(row[1]||'');
     const expectedHash = String(row[2]||'');
-    const actualHash = sha256Hex(salt + ':' + password);
     const rowIndex = i + 1;
 
-    if(!expectedHash || actualHash !== expectedHash){
+    if(!expectedHash || !verifyPasswordHash(salt, password, expectedHash)){
       const attempts = (Number(row[5])||0) + 1;
       sheet.getRange(rowIndex, 6).setValue(attempts);
       if(attempts >= MAX_FAILED_ATTEMPTS){
@@ -152,6 +177,8 @@ function doLogin(username, password){
       throw mkError('invalid_credentials');
     }
 
+    // Migração transparente de hashes legados para o formato iterativo v2.
+    if(expectedHash.indexOf('v2$')!==0) sheet.getRange(rowIndex, 3).setValue(makePasswordHash(salt, password));
     sheet.getRange(rowIndex, 6).setValue(0);
     sheet.getRange(rowIndex, 7).setValue('');
     const role = String(row[3]||'').trim();
@@ -167,7 +194,7 @@ function doLogin(username, password){
 function doGetData(){
   const accounts = readAccounts();
   const sources = readSources();
-  const transactions = readAllTransactions(sources);
+  const transactions = readConsolidatedTransactions(sources);
   const history = readHistory();
   const applications = readApplications();
   return { accounts, sources, transactions, history, applications };
@@ -222,6 +249,60 @@ function readAllTransactions(sources){
   });
   rows.sort((a,b)=> a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   return rows;
+}
+
+function readConsolidatedTransactions(sources){
+  const folder = getSubFolder('fontes');
+  const files = folder.getFilesByName('_consolidated.json');
+  if(files.hasNext()){
+    try{
+      const parsed = JSON.parse(files.next().getBlob().getDataAsString('UTF-8'));
+      if(parsed && Array.isArray(parsed.rows)) return parsed.rows;
+    }catch(e){ console.error('leitura consolidada', e); }
+  }
+  const rows = readAllTransactions(sources);
+  try{ writeOrReplaceFile(folder, '_consolidated.json', JSON.stringify({ rows:rows, builtAt:new Date().toISOString() }), MimeType.PLAIN_TEXT); }catch(e){}
+  return rows;
+}
+
+function rebuildConsolidatedTransactions(){
+  const rows = readAllTransactions(readSources());
+  const folder = getSubFolder('fontes');
+  writeOrReplaceFile(folder, '_consolidated.json', JSON.stringify({ rows:rows, builtAt:new Date().toISOString() }), MimeType.PLAIN_TEXT);
+  return rows.length;
+}
+
+function normalizeAccountServer(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function resolveAccountIdServer(value, accounts){
+  const raw = String(value||'').trim();
+  if(!raw) return '';
+  for(let i=0;i<accounts.length;i++) if(String(accounts[i].id)===raw) return accounts[i].id;
+  const key = normalizeAccountServer(raw);
+  for(let i=0;i<accounts.length;i++) if(normalizeAccountServer(accounts[i].name)===key) return accounts[i].id;
+  return '';
+}
+function validateAndNormalizeImportRows(rows, sourceId, sourceName){
+  if(!Array.isArray(rows)) throw mkError('invalid_argument', 'rows inválido');
+  const accounts = readAccounts();
+  const importId = Utilities.getUuid();
+  return rows.map((r,index)=>{
+    if(!r || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||''))) throw mkError('invalid_argument', 'data inválida na linha '+(index+1));
+    if(r.type!=='recebimento' && r.type!=='pagamento') throw mkError('invalid_argument', 'tipo inválido na linha '+(index+1));
+    if(r.status!=='realizado' && r.status!=='previsto') throw mkError('invalid_argument', 'status inválido na linha '+(index+1));
+    const value = Number(r.value);
+    if(!isFinite(value) || value<=0) throw mkError('invalid_argument', 'valor inválido na linha '+(index+1));
+    const account = String(r.account||sourceName||'').trim();
+    return Object.assign({}, r, {
+      id: r.id || sourceId+'_'+String(r.date)+'_'+String(index+1),
+      sourceId: sourceId,
+      importId: r.importId || importId,
+      account: account,
+      accountId: r.accountId || resolveAccountIdServer(account, accounts) || resolveAccountIdServer(sourceName, accounts),
+      value: value,
+    });
+  });
 }
 
 function readHistory(){
@@ -322,33 +403,49 @@ function doSaveImport(body){
   const sourceId = body.sourceId;
   if(!sourceId) throw mkError('invalid_argument', 'sourceId ausente');
 
-  const fontesFolder = getSubFolder('fontes');
-  const rowsContent = JSON.stringify({ rows: body.rows || [] });
-  writeOrReplaceFile(fontesFolder, sourceId + '.json', rowsContent, MimeType.PLAIN_TEXT);
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(10000)) throw mkError('busy', 'outra importação está em andamento');
+  try{
+    const normalizedRows = validateAndNormalizeImportRows(body.rows || [], sourceId, body.sourceName||'');
+    const fontesFolder = getSubFolder('fontes');
+    const fileName = sourceId + '.json';
+    const existing = fontesFolder.getFilesByName(fileName);
+    const previousContent = existing.hasNext() ? existing.next().getBlob().getDataAsString('UTF-8') : null;
+    const rowsContent = JSON.stringify({ rows: normalizedRows, sourceId:sourceId, builtAt:new Date().toISOString() });
 
-  if(body.fileBase64){
     try{
-      const originaisFolder = getSubFolder('originais');
-      const bytes = Utilities.base64Decode(body.fileBase64);
-      const blob = Utilities.newBlob(bytes, body.fileMime || 'application/octet-stream', body.filename || (sourceId+'_original'));
-      const stamped = sourceId + '__' + Utilities.formatDate(new Date(), Session.getScriptTimeZone()||'GMT', 'yyyyMMdd_HHmmss') + '__' + (body.filename||'arquivo');
-      blob.setName(stamped);
-      originaisFolder.createFile(blob);
-    }catch(e){ console.error('guardar original', e); /* best-effort — não deve travar o upload */ }
-  }
+      writeOrReplaceFile(fontesFolder, fileName, rowsContent, MimeType.PLAIN_TEXT);
+      const sheet = getSheet(SHEET_SOURCES);
+      const data = sheet.getDataRange().getValues();
+      let rowIndex = -1;
+      for(let i=1;i<data.length;i++){ if(String(data[i][0])===String(sourceId)){ rowIndex = i+1; break; } }
+      const values = [
+        sourceId, body.sourceName||'', body.filename||'', body.sheetName||'',
+        JSON.stringify(body.mapping||{}), body.headerSignature||'',
+        normalizedRows.length, new Date().toISOString(),
+      ];
+      if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
+      else sheet.appendRow(values);
+      rebuildConsolidatedTransactions();
+    }catch(writeErr){
+      if(previousContent!==null) writeOrReplaceFile(fontesFolder, fileName, previousContent, MimeType.PLAIN_TEXT);
+      throw writeErr;
+    }
 
-  const sheet = getSheet(SHEET_SOURCES);
-  const data = sheet.getDataRange().getValues();
-  let rowIndex = -1;
-  for(let i=1;i<data.length;i++){ if(String(data[i][0])===String(sourceId)){ rowIndex = i+1; break; } }
-  const values = [
-    sourceId, body.sourceName||'', body.filename||'', body.sheetName||'',
-    JSON.stringify(body.mapping||{}), body.headerSignature||'',
-    (body.rows||[]).length, new Date().toISOString(),
-  ];
-  if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
-  else sheet.appendRow(values);
-  return {};
+    if(body.fileBase64){
+      try{
+        const originaisFolder = getSubFolder('originais');
+        const bytes = Utilities.base64Decode(body.fileBase64);
+        const blob = Utilities.newBlob(bytes, body.fileMime || 'application/octet-stream', body.filename || (sourceId+'_original'));
+        const stamped = sourceId + '__' + Utilities.formatDate(new Date(), Session.getScriptTimeZone()||'GMT', 'yyyyMMdd_HHmmss') + '__' + (body.filename||'arquivo');
+        blob.setName(stamped);
+        originaisFolder.createFile(blob);
+      }catch(e){ console.error('guardar original', e); }
+    }
+    return { rowCount:normalizedRows.length };
+  }finally{
+    lock.releaseLock();
+  }
 }
 
 function doDeleteSource(sourceId){
@@ -362,6 +459,7 @@ function doDeleteSource(sourceId){
   for(let i=1;i<data.length;i++){
     if(String(data[i][0])===String(sourceId)){ sheet.deleteRow(i+1); break; }
   }
+  rebuildConsolidatedTransactions();
   return {};
 }
 
@@ -371,22 +469,32 @@ function doDeleteSource(sourceId){
  * a fotografia mais recente de todos os fundos, já processada no navegador
  * (ver parseApplicationsWorkbook em app.js). */
 function doSaveApplications(body){
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(10000)) throw mkError('busy', 'outra atualização está em andamento');
+  try{
   const funds = Array.isArray(body.funds) ? body.funds : [];
   const sheet = getSheet(SHEET_APPLICATIONS);
   const lastRow = sheet.getLastRow();
-  if(lastRow > 1) sheet.getRange(2, 1, lastRow-1, Math.max(sheet.getLastColumn(),17)).clearContent();
+  const colCount = Math.max(sheet.getLastColumn(),17);
+  const previousValues = lastRow > 1 ? sheet.getRange(2, 1, lastRow-1, colCount).getValues() : [];
   const now = new Date().toISOString();
-  if(funds.length){
-    const values = funds.map(f=>[
-      String(f.id||''), String(f.banco||''), String(f.fundo||''), String(f.contaCod||''),
-      String(f.competencia||''),
-      Number(f.saldoInicial)||0, Number(f.aplicacoes)||0, Number(f.rendimentos)||0,
-      Number(f.imposto)||0, Number(f.resgate)||0, Number(f.saldoFinal)||0,
-      (f.rendimentosPct===null || f.rendimentosPct===undefined || f.rendimentosPct==='') ? '' : Number(f.rendimentosPct),
-      String(f.cotizacaoResgate||''), String(f.garantia||''), String(f.vinculo||''), String(f.indexador||''),
-      now,
-    ]);
-    sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+  const values = funds.map(f=>[
+    String(f.id||''), String(f.banco||''), String(f.fundo||''), String(f.contaCod||''),
+    String(f.competencia||''),
+    Number(f.saldoInicial)||0, Number(f.aplicacoes)||0, Number(f.rendimentos)||0,
+    Number(f.imposto)||0, Number(f.resgate)||0, Number(f.saldoFinal)||0,
+    (f.rendimentosPct===null || f.rendimentosPct===undefined || f.rendimentosPct==='') ? '' : Number(f.rendimentosPct),
+    String(f.cotizacaoResgate||''), String(f.garantia||''), String(f.vinculo||''), String(f.indexador||''),
+    now,
+  ]);
+  try{
+    if(lastRow > 1) sheet.getRange(2, 1, lastRow-1, colCount).clearContent();
+    if(values.length) sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+  }catch(writeErr){
+    const newLast = sheet.getLastRow();
+    if(newLast > 1) sheet.getRange(2, 1, newLast-1, Math.max(sheet.getLastColumn(),colCount)).clearContent();
+    if(previousValues.length) sheet.getRange(2, 1, previousValues.length, previousValues[0].length).setValues(previousValues);
+    throw writeErr;
   }
 
   if(body.fileBase64){
@@ -400,6 +508,9 @@ function doSaveApplications(body){
     }catch(e){ console.error('guardar original de aplicações', e); /* best-effort */ }
   }
   return {};
+  }finally{
+    lock.releaseLock();
+  }
 }
 
 /* ==== HISTÓRICO DE UPLOADS ==== */
@@ -564,7 +675,7 @@ function setUserPassword(username, role, nome, plainPassword){
     if(String(data[i][0]).trim().toLowerCase() === username.toLowerCase()){ rowIndex = i+1; break; }
   }
   const salt = Utilities.getUuid();
-  const hash = sha256Hex(salt + ':' + plainPassword);
+  const hash = makePasswordHash(salt, plainPassword);
   const values = [username, salt, hash, role, nome, 0, ''];
   if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
   else sheet.appendRow(values);

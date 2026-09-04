@@ -17,7 +17,7 @@
 <div class="modal-overlay" id="loginOverlay">
   <div class="modal login-card">
     <div class="modal-head">
-      <img class="login-logo" src="assets/plansul-wordmark.png" alt="Plansul">
+      <img class="login-logo" src="assets/plansul-wordmark.png" alt="Plansul — Nossa melhor referência">
       <h2>Fluxo de Caixa Plansul</h2>
       <p>Acesso da equipe financeira — carregar relatórios e editar contas.</p>
     </div>
@@ -40,31 +40,74 @@
 
 <div class="app" id="app" hidden>
   <header class="topbar">
-    <div class="brand">
-      <img class="brand-mark" src="assets/plansul-mark-real.png" alt="Plansul">
-      <span class="brand-divider" aria-hidden="true"></span>
-      <div class="brand-text">
-        <h1>Fluxo de Caixa</h1>
-        <p class="brand-sub">Plansul &middot; acompanhamento e projeção diária</p>
+    <div class="topbar-inner">
+      <div class="topbar-row-1">
+        <div class="brand">
+          <img class="brand-logo" src="assets/plansul-wordmark.png" alt="Plansul — Nossa melhor referência">
+          <span class="brand-divider" aria-hidden="true"></span>
+          <div class="brand-text">
+            <h1>Fluxo de Caixa</h1>
+            <p class="brand-sub">Plansul &middot; acompanhamento e projeção diária</p>
+          </div>
+        </div>
+        <div class="topbar-controls">
+          <div class="header-dropdown">
+            <button class="header-dropdown-trigger range-trigger" id="headerRangeTrigger" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Selecionar período do painel">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+              <span id="headerRangeLabel">Período</span>
+              <svg class="hdt-chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="header-dropdown-pop" id="headerRangePop" hidden role="menu" aria-label="Opções de período"></div>
+          </div>
+          <button class="icon-btn-outline" id="btnRefresh" type="button" aria-label="Atualizar dados agora">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>
+          </button>
+          <div class="sync-status" id="syncStatus"><span class="sync-dot off" id="syncDot"></span><span id="syncLabel">Conectando…</span></div>
+          <div class="header-dropdown">
+            <button class="header-dropdown-trigger avatar-trigger" id="avatarTrigger" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Menu do usuário">
+              <span class="avatar-circle" id="avatarCircle"></span>
+            </button>
+            <div class="header-dropdown-pop avatar-pop" id="avatarPop" hidden role="menu" aria-label="Menu do usuário">
+              <div class="avatar-pop-user">
+                <span id="userName"></span>
+                <span class="user-role" id="userRole"></span>
+                <span class="kpi-badge warn" id="readonlyPill" hidden title="Somente a equipe financeira pode carregar relatórios ou editar contas">Somente leitura</span>
+              </div>
+              <div class="avatar-pop-divider"></div>
+              <button class="avatar-pop-item" id="btnExport" type="button">Exportar CSV</button>
+              <button class="avatar-pop-item" id="btnUpload" type="button" hidden>Carregar relatório</button>
+              <div class="avatar-pop-divider"></div>
+              <button class="avatar-pop-item danger" id="btnLogout" type="button">Sair</button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="topbar-right">
-      <div class="sync-status" id="syncStatus"><span class="sync-dot off" id="syncDot"></span><span id="syncLabel">Conectando…</span></div>
-      <span class="kpi-badge warn" id="readonlyPill" hidden title="Somente a equipe financeira pode carregar relatórios ou editar contas">Somente leitura</span>
-      <div class="user-badge">
-        <span id="userName"></span>
-        <span class="user-role" id="userRole"></span>
-      </div>
-      <button class="btn btn-ghost" id="btnLogout">Sair</button>
-      <button class="btn btn-ghost" id="btnExport">Exportar CSV</button>
-      <button class="btn btn-primary" id="btnUpload" hidden>Carregar relatório</button>
+      <nav class="topbar-row-2" id="viewTabs" aria-label="Seções do painel">
+        <button class="nav-tab active" type="button" data-view="dashboard" aria-current="page">Painel</button>
+        <button class="nav-tab" type="button" data-view="history">Histórico de uploads</button>
+        <button class="nav-tab" type="button" data-view="applications">Aplicações</button>
+        <button class="nav-tab" type="button" data-view="verification">Verificação de importação</button>
+      </nav>
     </div>
   </header>
 
-  <nav class="range-control" id="viewTabs" style="margin:0 4px 14px;width:fit-content;">
-    <button class="range-btn active" data-view="dashboard">Painel</button>
-    <button class="range-btn" data-view="history">Histórico de uploads</button>
-    <button class="range-btn" data-view="applications">Aplicações</button>
+  <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Navegação principal">
+    <button class="mobile-nav-btn active" type="button" data-view="dashboard" aria-current="page">
+      <svg class="mnb-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span>Painel</span>
+    </button>
+    <button class="mobile-nav-btn" type="button" data-view="history">
+      <svg class="mnb-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3v5h5"/><path d="M6 3h8l5 5v13H6z"/><path d="M9 13h6M9 17h6"/></svg>
+      <span>Histórico</span>
+    </button>
+    <button class="mobile-nav-btn" type="button" data-view="applications">
+      <svg class="mnb-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>
+      <span>Aplicações</span>
+    </button>
+    <button class="mobile-nav-btn" type="button" data-view="verification">
+      <svg class="mnb-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+      <span>Verificação</span>
+    </button>
   </nav>
 
   <div class="demo-banner" id="demoBanner" hidden>
@@ -74,81 +117,137 @@
 
   <div id="dashboardView">
   <section class="kpi-row" id="kpiRow"></section>
+  <section class="cash-risk-row" id="cashRiskRow" aria-label="Risco e necessidade de caixa"></section>
 
-  <section class="main-grid">
-    <div class="charts-col">
-      <div class="card chart-card">
-        <div class="card-head">
-          <h2>Fluxo diário — recebido &times; pago</h2>
-          <div class="range-control" id="rangeControl"></div>
-        </div>
-        <div class="chart-legend" id="dailyLegend"></div>
-        <div class="chart-wrap" id="dailyChartWrap">
-          <svg id="dailyChart" viewBox="0 0 960 260"></svg>
-          <div class="chart-tooltip" id="dailyTooltip"></div>
-        </div>
-      </div>
-      <div class="card chart-card">
-        <div class="card-head"><h2>Saldo acumulado projetado</h2></div>
-        <div class="chart-wrap" id="cumChartWrap">
-          <svg id="cumChart" viewBox="0 0 960 200"></svg>
-          <div class="chart-tooltip" id="cumTooltip"></div>
-        </div>
-      </div>
-    </div>
-    <aside class="side-col">
-      <div class="card">
-        <div class="card-head">
-          <h2>Contas &amp; aplicações</h2>
-          <button class="btn btn-small" id="btnAddAccount" hidden>+ Conta</button>
-        </div>
-        <div class="account-list" id="accountList"></div>
-        <div class="account-total" id="accountTotal"></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2>Relatórios carregados</h2></div>
-        <div class="account-list" id="sourceList"></div>
-        <div class="field-hint">Cada fonte (banco/sistema) é guardada separadamente — carregar um novo arquivo substitui só os lançamentos dela.</div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2>Maiores categorias</h2></div>
-        <div class="category-list" id="categoryList"></div>
-      </div>
-    </aside>
-  </section>
-
-  <section class="card table-card">
+  <div class="card chart-card">
     <div class="card-head">
-      <h2>Lançamentos</h2>
-      <div class="table-filters" id="tableFilters">
-        <input type="search" id="fSearch" placeholder="Buscar descrição, conta, categoria…">
-        <select id="fTipo">
-          <option value="">Todos os tipos</option>
-          <option value="recebimento">Recebimento</option>
-          <option value="pagamento">Pagamento</option>
-        </select>
-        <select id="fStatus">
-          <option value="">Todos os status</option>
-          <option value="realizado">Realizado</option>
-          <option value="previsto">Previsto</option>
-        </select>
-        <select id="fConta"><option value="">Todas as contas</option></select>
+      <div>
+        <h2 id="projectionTitle">Evolução e projeção do caixa</h2>
+        <p class="card-description">Saldo bancário diário, sem considerar aplicações financeiras.</p>
+      </div>
+      <span class="matrix-period" id="projectionPeriod"></span>
+    </div>
+    <div class="chart-legend" id="dailyLegend"></div>
+    <div class="chart-wrap" id="cumChartWrap">
+      <svg id="cumChart" viewBox="0 0 960 260"></svg>
+      <div class="chart-tooltip" id="cumTooltip"></div>
+    </div>
+  </div>
+
+  <section class="card bank-position-card" aria-labelledby="bankPositionTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="bankPositionTitle">Posição por banco</h2>
+        <p class="card-description">Saldo atual, valores previstos no período e saldo bancário projetado de cada conta.</p>
+      </div>
+      <div class="bank-position-actions">
+        <button class="btn btn-small" id="btnAddAccount" hidden>+ Conta</button>
+        <div class="bank-position-toggle-wrap" id="bankPositionToggleWrap" hidden>
+          <button class="link-btn" id="btnBankPositionToggle" type="button">Ver todos os bancos</button>
+        </div>
       </div>
     </div>
     <div class="table-wrap">
-      <table id="txTable">
+      <table class="bank-position-table" id="bankPositionTable">
+        <thead>
+          <tr>
+            <th>Banco</th>
+            <th>Conta</th>
+            <th class="num-col">Saldo atual</th>
+            <th class="num-col">A receber</th>
+            <th class="num-col">A pagar</th>
+            <th class="num-col">Projetado</th>
+            <th>Atualização</th>
+            <th class="bp-actions-col"></th>
+          </tr>
+        </thead>
+        <tbody id="bankPositionBody"></tbody>
+        <tfoot id="bankPositionFoot"></tfoot>
+      </table>
+    </div>
+    <div class="bank-cards" id="bankPositionCards"></div>
+  </section>
+
+  <section class="card" id="sourcesCard" aria-labelledby="sourcesTitle">
+    <div class="card-head"><h2 id="sourcesTitle">Relatórios carregados</h2></div>
+    <div class="account-list" id="sourceList"></div>
+    <div class="field-hint">Cada fonte (banco/sistema) é guardada separadamente — carregar um novo arquivo substitui só os lançamentos dela.</div>
+  </section>
+
+  <section class="card table-card cash-matrix-card" aria-labelledby="diarioTitle">
+    <div class="card-head cash-matrix-head">
+      <div>
+        <h2 id="diarioTitle">Diário</h2>
+        <p class="card-description">Saldo do dia: entradas, saídas e saldo acumulado — reconciliado com o saldo bancário.</p>
+      </div>
+      <span class="matrix-period" id="diarioPeriod"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="diarioTable">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th class="num-col">Entradas</th>
+            <th class="num-col">Saídas</th>
+            <th class="num-col">Saldo acumulado</th>
+          </tr>
+        </thead>
+        <tbody id="diarioBody"></tbody>
+      </table>
+    </div>
+    <div class="matrix-cards" id="diarioCards"></div>
+    <div class="table-footer" id="diarioFooter"></div>
+  </section>
+
+  <section class="card movements-card" aria-labelledby="movementsTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="movementsTitle">Matriz por descrição</h2>
+        <p class="card-description">Lançamentos do período, entradas e saídas juntas, ordenados por data.</p>
+      </div>
+    </div>
+    <div class="table-filters" id="tableFilters">
+      <input type="search" id="fSearch" placeholder="Buscar cliente, fornecedor, descrição ou categoria…">
+      <select id="fTipo">
+        <option value="">Todos os tipos</option>
+        <option value="recebimento">Recebimento</option>
+        <option value="pagamento">Pagamento</option>
+      </select>
+      <select id="fStatus">
+        <option value="">Todos os status</option>
+        <option value="realizado">Realizado</option>
+        <option value="previsto">Previsto</option>
+      </select>
+      <select id="fConta"><option value="">Todas as contas</option></select>
+    </div>
+    <div class="table-wrap">
+      <table id="descMatrixTable">
         <thead>
           <tr>
             <th>Data</th>
             <th>Descrição</th>
-            <th>Categoria</th>
             <th>Conta</th>
-            <th>Status</th>
+            <th>Categoria</th>
             <th class="num-col">Valor</th>
+            <th>Status</th>
           </tr>
         </thead>
-        <tbody id="txTableBody"></tbody>
+        <tbody id="descMatrixBody"></tbody>
       </table>
+    </div>
+    <div class="movement-cards" id="descMatrixCards"></div>
+    <div class="movements-pagination-row">
+      <div class="movements-pagesize">
+        <label for="movementsPageSize">Lançamentos por página</label>
+        <select id="movementsPageSize">
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="9999">Tudo</option>
+        </select>
+      </div>
+      <span class="movements-pagination-summary" id="movementsPaginationSummary"></span>
+      <div class="movements-pagination" id="movementsPagination"></div>
     </div>
     <div class="table-footer" id="tableFooter"></div>
   </section>
@@ -178,16 +277,66 @@
     <div class="table-footer" id="historyFooter"></div>
   </section>
 
-  <section class="card table-card" id="applicationsView" hidden>
-    <div class="card-head">
-      <h2>Aplicações — saldo por fundo</h2>
+  <div id="applicationsView" hidden>
+    <div class="card-head apps-page-head">
+      <div>
+        <h2>Aplicações</h2>
+        <p class="card-description">Saldo, liquidez e rentabilidade de cada fundo, por banco.</p>
+      </div>
       <div class="table-filters">
         <select id="appsBankFilter"><option value="">Todos os bancos</option></select>
       </div>
     </div>
-    <div class="kpi-row" id="appsKpiRow" style="margin-bottom:14px;"></div>
+
     <div id="appsStaleBanner"></div>
-    <div class="main-grid" style="grid-template-columns: 1fr 260px;">
+
+    <div class="apps-hero-row" id="appsHeroRow"></div>
+
+    <section class="kpi-row" id="appsKpiRow"></section>
+
+    <div class="apps-charts-row">
+      <div class="card chart-sub-card">
+        <h3>Aplicações por banco</h3>
+        <div class="hbar-list" id="appsChartBanco"></div>
+      </div>
+      <div class="apps-charts-col">
+        <div class="card chart-sub-card">
+          <h3>Aplicações por vínculo</h3>
+          <div class="hbar-list" id="appsChartVinculo"></div>
+        </div>
+        <div class="card chart-sub-card">
+          <h3>Aplicações por liquidez</h3>
+          <div class="hbar-list" id="appsChartLiquidez"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="apps-section-head">
+      <div>
+        <h3>Liquidez e destaques</h3>
+        <p>Quanto pode ser resgatado em cada prazo e os pontos de atenção do período.</p>
+      </div>
+    </div>
+    <section class="kpi-row" id="appsLiquidityKpiRow"></section>
+
+    <div class="apps-charts-row">
+      <div class="card chart-sub-card">
+        <h3>Top aplicações por rentabilidade</h3>
+        <div class="hbar-list" id="appsChartTopRent"></div>
+      </div>
+      <div class="card chart-sub-card">
+        <h3>Prazos e vencimentos</h3>
+        <div class="table-wrap">
+          <table class="preview-table">
+            <thead><tr><th>Prazo</th><th class="num-col">Saldo</th><th class="num-col">% do total</th><th class="num-col">Fundos</th></tr></thead>
+            <tbody id="appsPrazosBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <section class="card table-card" aria-labelledby="appsDetailTitle">
+      <div class="card-head"><h2 id="appsDetailTitle">Detalhamento por fundo</h2></div>
       <div class="table-wrap">
         <table id="appsTable">
           <thead>
@@ -202,12 +351,22 @@
           <tbody id="appsTableBody"></tbody>
         </table>
       </div>
-      <aside class="card" style="margin:0;">
-        <div class="card-head"><h2>Saldo por banco</h2></div>
-        <div class="account-list" id="appsByBankList"></div>
-      </aside>
+      <div class="table-footer" id="appsFooter"></div>
+    </section>
+  </div>
+
+  <section class="card" id="verificationView" hidden aria-labelledby="verificationTitle">
+    <div class="card-head">
+      <div>
+        <h2 id="verificationTitle">Verificação de importação</h2>
+        <p class="card-description">Inconsistências encontradas ao carregar cada relatório e o que fazer para resolver cada uma.</p>
+      </div>
+      <div class="table-filters">
+        <select id="verifBankFilter"><option value="">Todos os bancos</option></select>
+      </div>
     </div>
-    <div class="table-footer" id="appsFooter"></div>
+    <div class="kpi-row" id="verifKpiRow" style="margin-bottom:14px;"></div>
+    <div id="verifList"></div>
   </section>
 
   <footer class="app-footer">
