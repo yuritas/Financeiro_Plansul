@@ -27,7 +27,6 @@
   function applyTheme(theme,persist){
     const next=normalizeTheme(theme);
     root.dataset.mobileTheme=next;
-    root.style.colorScheme=next==='dark'?'dark':'light';
     if(persist!==false){
       try{ localStorage.setItem(STORAGE_KEY,next); }catch(e){}
     }
