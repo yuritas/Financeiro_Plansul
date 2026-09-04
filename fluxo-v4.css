@@ -1,0 +1,44 @@
+/* Fluxo de Caixa v4 — mobile compacto e aplicações */
+.mobile-section-label{display:none}
+.issue-fund-action{margin-top:10px;display:flex;justify-content:flex-end}
+.periodic-fund-badge{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:11px;font-weight:700}
+.matrix-range-wrap{min-width:232px}
+.matrix-range-trigger{width:100%;justify-content:flex-start}
+.matrix-range-trigger #matrixRangeLabel{flex:1;text-align:left}
+.matrix-range-pop{left:0;right:auto}
+@media(max-width:860px){
+  .topbar-controls{width:100%;display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;justify-content:stretch}
+  .topbar-controls>.header-dropdown:first-child{display:flex;width:100%;grid-column:1/-1;grid-row:1}
+  #headerRangeTrigger.header-dropdown-trigger.range-trigger{display:inline-flex!important;width:100%;justify-content:flex-start}
+  #headerRangeTrigger #headerRangeLabel{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis}
+  .topbar-controls>#btnRefresh{grid-column:1;grid-row:2}
+  .topbar-controls>.sync-status{grid-column:2;grid-row:2;min-width:0;overflow:hidden}
+  .topbar-controls>.header-dropdown:last-child{grid-column:3;grid-row:2;justify-self:end}
+}
+@media(max-width:760px){
+  #dashboardView>.kpi-row{display:flex!important;flex-direction:column;gap:8px;margin-bottom:12px}
+  #dashboardView>.kpi-row .kpi-tile{min-height:74px;padding:10px 12px;display:grid;grid-template-columns:38px 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center}
+  #dashboardView>.kpi-row .kpi-icon{grid-row:1/3;grid-column:1;width:34px;height:34px;margin:0}
+  #dashboardView>.kpi-row .kpi-label{grid-column:2;grid-row:1;font-size:12px;margin:0}
+  #dashboardView>.kpi-row .kpi-value{grid-column:3;grid-row:1/3;font-size:clamp(16px,5vw,22px);line-height:1.05;text-align:right;max-width:48vw;overflow-wrap:anywhere}
+  #dashboardView>.kpi-row .kpi-sub,#dashboardView>.kpi-row .kpi-trend{grid-column:2;grid-row:2;margin:2px 0 0;font-size:10.5px}
+  .mobile-section-label{display:block;margin:14px 0 7px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
+  #cashRiskRow{display:flex!important;flex-direction:column;gap:8px;margin-bottom:14px}
+  #cashRiskRow .cash-risk-card{min-height:68px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center}
+  #cashRiskRow .cash-risk-label{grid-column:1;grid-row:1}
+  #cashRiskRow strong{grid-column:2;grid-row:1/3;font-size:18px;text-align:right;max-width:50vw;overflow-wrap:anywhere}
+  #cashRiskRow .cash-risk-note{grid-column:1;grid-row:2;font-size:10.5px}
+  .cash-matrix-card .table-wrap{display:none!important}
+  #diarioCards{display:flex!important;flex-direction:column;gap:8px;max-height:620px;overflow-y:auto;padding-right:3px;scrollbar-width:thin}
+  #diarioCards .matrix-day-card{min-height:78px;padding:10px 12px}
+  #diarioCards .matrix-day-card-row{font-size:12px}
+  #diarioCards .matrix-day-card-net{font-size:12px}
+  #applicationsView .kpi-row{display:flex!important;flex-direction:column;gap:8px}
+  #applicationsView .kpi-tile{min-height:70px;padding:10px 12px}
+  #applicationsView .kpi-value{font-size:clamp(17px,5vw,22px);overflow-wrap:anywhere}
+  .apps-hero-row{grid-template-columns:1fr!important}
+  .apps-hero-value{font-size:clamp(22px,7vw,30px)!important;overflow-wrap:anywhere}
+  .matrix-range-wrap{width:100%;min-width:0;grid-column:1/-1}
+  .matrix-range-trigger{width:100%;min-width:0}
+  .matrix-range-pop{left:10px!important;right:10px!important}
+}
