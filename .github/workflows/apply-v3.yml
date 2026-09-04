@@ -1,0 +1,45 @@
+name: Apply Fluxo de Caixa V3
+
+on:
+  push:
+    paths:
+      - '.v3payload/ready'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - name: Rebuild and extract V3
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .v3payload/chunk_*.b64 | base64 -d > /tmp/v3patch.tgz
+          echo '33ddfcb36bb7688f6413749f26902ecf92b098d6eff45ec85bfd79d3262ad30e  /tmp/v3patch.tgz' | sha256sum -c -
+          tar -xzf /tmp/v3patch.tgz -C .
+          rm -rf .v3payload
+          rm -f .github/workflows/apply-v3.yml
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check tesouraria-v3.js
+          cp apps-script/Code.gs /tmp/Code-check.js
+          node --check /tmp/Code-check.js
+      - name: Commit final V3
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Plansul'
+          git config user.email 'yuritas.pessoal@gmail.com'
+          git add -A
+          git commit -m 'feat: calendário por intervalo, saldos-base e histórico de extratos'
+          git push origin HEAD:${{ github.ref_name }}
