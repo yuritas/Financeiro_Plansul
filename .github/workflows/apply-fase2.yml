@@ -1,0 +1,50 @@
+name: Apply Fase 2 payload
+
+on:
+  push:
+    branches:
+      - fase-2-tesouraria
+    paths:
+      - '.fase2/ready'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fase-2-tesouraria
+          fetch-depth: 0
+
+      - name: Rebuild and extract Fase 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .fase2/chunk_*.b64 > /tmp/fase2.b64
+          base64 -d /tmp/fase2.b64 > /tmp/fase2.tar.gz
+          tar -tzf /tmp/fase2.tar.gz
+          tar -xzf /tmp/fase2.tar.gz -C .
+          rm -rf .fase2
+          rm -f .github/workflows/apply-fase2.yml
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          cp apps-script/Code.gs /tmp/Code.js
+          node --check /tmp/Code.js
+
+      - name: Commit final Fase 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: implementa Fase 2 de tesouraria e fluxo de caixa" || exit 0
+          git push origin HEAD:fase-2-tesouraria
