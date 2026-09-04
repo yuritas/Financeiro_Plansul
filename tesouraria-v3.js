@@ -65,7 +65,7 @@
       <div class="drp-month-head">
         ${second?'':'<button class="drp-nav" data-cal-nav="-1" type="button" aria-label="Mês anterior">‹</button>'}
         <span>${monthTitle(monthISO)}</span>
-        ${second?'<button class="drp-nav" data-cal-nav="1" type="button" aria-label="Próximo mês">›</button>':'<span style="width:30px"></span>'}
+        ${second?'<button class="drp-nav" data-cal-nav="1" type="button" aria-label="Próximo mês">›</button>':'<button class="drp-nav drp-next-mobile" data-cal-nav="1" type="button" aria-label="Próximo mês">›</button>'}
       </div>
       <div class="drp-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
       <div class="drp-grid">${cells.map(c=>{
@@ -110,7 +110,7 @@
   renderRangeControl = function(){
     ensureCustomRange();
     const trigger=document.getElementById('headerRangeTrigger'), label=document.getElementById('headerRangeLabel'), pop=document.getElementById('headerRangePop'); if(!trigger||!pop) return;
-    const r=parseRangeId(currentRangeId); if(!pendingStart) pendingStart=r.start; if(!pendingEnd) pendingEnd=r.end; if(!calendarCursor) calendarCursor=isoMonthStart(pendingStart);
+    const r=parseRangeId(currentRangeId); if(!pendingStart && !pendingEnd){ pendingStart=r.start; pendingEnd=r.end; } if(!calendarCursor) calendarCursor=isoMonthStart(pendingStart||r.start);
     if(label) label.textContent=`${formatDateBR(r.start)} – ${formatDateBR(r.end)}`;
     pop.classList.add('date-range-pop');
     pop.innerHTML=`<div class="drp-head"><div><div class="drp-title">Intervalo do Fluxo de Caixa</div><div class="drp-value">${pendingStart?formatDateBR(pendingStart):'—'} → ${pendingEnd?formatDateBR(pendingEnd):'selecione a data final'}</div></div></div>
