@@ -10,7 +10,7 @@
     else if(input instanceof Request && input.url === OLD_ENDPOINT) input = new Request(NEW_ENDPOINT, input);
     return nativeFetch(input, init);
   };
-  ['login-fix.css','tesouraria-v3.css','fluxo-v4.css','fluxo-v4-fundcards.css'].forEach(href=>{
+  ['login-fix.css','tesouraria-v3.css','fluxo-v4.css','fluxo-v4-fundcards.css','fluxo-v5-theme.css'].forEach(href=>{
     const css=document.createElement('link'); css.rel='stylesheet'; css.href=href; document.head.appendChild(css);
   });
   document.write('<script src="app-core.js"><\/script>');
@@ -20,4 +20,5 @@
   document.write('<script src="fluxo-v4.js"><\/script>');
   document.write('<script src="fluxo-v4-ui.js"><\/script>');
   document.write('<script src="fluxo-v4-datefilters.js"><\/script>');
+  document.write('<script src="fluxo-v5-theme.js"><\/script>');
 })();
