@@ -3344,5 +3344,8 @@ function boot(){
     showLoginScreen();
   }
 }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
-else boot();
+window.PlansulBoot = boot;
+if(!window.__PLANSUL_DEFER_BOOT__){
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+}
