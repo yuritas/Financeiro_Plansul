@@ -4,6 +4,7 @@
 (function(){
   'use strict';
   window.__PLANSUL_BRIDGE_V10__=true;
+  const FIRST_LOAD_LIMIT_MS=30000;
 
   function injectStyle(){
     if(document.getElementById('plansulV10BridgeStyle')) return;
@@ -55,6 +56,15 @@
     loader(true,'Carregando dados do fluxo de caixa…');
   }
 
+  function finishLateLoad(loadPromise){
+    loadPromise.then(ok=>{
+      if(!ok || !session) return;
+      loader(false);
+      try{ if(typeof hideLoginScreen==='function') hideLoginScreen(); }catch(e){}
+      try{ if(typeof startPolling==='function') startPolling(); }catch(e){ console.error('V10 polling tardio',e); }
+    }).catch(err=>console.error('V10 carga tardia',err));
+  }
+
   window.PlansulBoot=async function plansulBootV10(){
     let stored=null;
     try{ stored=typeof loadStoredSession==='function' ? loadStoredSession() : null; }catch(e){}
@@ -75,10 +85,26 @@
 
     revealShell();
 
+    if(typeof loadData!=='function'){
+      loader(false);
+      try{ if(typeof setSync==='function') setSync('stale','Falha ao inicializar o painel'); }catch(e){}
+      return true;
+    }
+
+    const loadPromise=Promise.resolve().then(()=>loadData());
+    let timedOut=false;
     let loaded=false;
     try{
-      if(typeof loadData!=='function') throw new Error('loadData indisponível');
-      loaded=await loadData();
+      const result=await Promise.race([
+        loadPromise.then(ok=>({type:'done',ok:!!ok})),
+        new Promise(resolve=>setTimeout(()=>resolve({type:'timeout'}),FIRST_LOAD_LIMIT_MS))
+      ]);
+      if(result.type==='timeout'){
+        timedOut=true;
+        finishLateLoad(loadPromise);
+      }else{
+        loaded=result.ok;
+      }
     }catch(err){
       console.error('V10 carga inicial',err);
       loaded=false;
@@ -99,6 +125,14 @@
 
     if(loaded){
       try{ if(typeof startPolling==='function') startPolling(); }catch(e){ console.error('V10 polling',e); }
+      return true;
+    }
+
+    if(timedOut){
+      try{ if(typeof setSync==='function') setSync('stale','Carga demorada — painel liberado'); }catch(e){}
+      try{
+        if(typeof showToast==='function') showToast('Acesso realizado. Os dados continuam carregando em segundo plano.',false);
+      }catch(e){}
       return true;
     }
 
