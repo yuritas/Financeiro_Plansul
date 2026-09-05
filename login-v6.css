@@ -1,29 +1,31 @@
-/* Plansul — V10 fallback visual. Mantido neste nome para compatibilidade com páginas em cache. */
-@import url('./login-v8.css?v=10');
-@import url('./login-v10-effects.css?v=10');
+/* Plansul — V11 fallback visual. Mantido neste nome para compatibilidade com HTML legado. */
+@import url('./login-v8.css?v=11');
+@import url('./login-v10-effects.css?v=11');
 
-/* Antes do JavaScript transformar o markup, o formulário legado permanece utilizável e próximo do visual final. */
+/* Primeira pintura antes do JS transformar o markup: mesma composição do layout aprovado. */
 #loginOverlay>.login-card{
   display:flex!important;
   flex-direction:column!important;
   width:100%!important;
   max-width:none!important;
+  height:100dvh!important;
   min-height:100dvh!important;
   margin:0!important;
   border:0!important;
   border-radius:0!important;
   background:transparent!important;
   box-shadow:none!important;
-  overflow:auto!important;
+  overflow:hidden!important;
 }
 #loginOverlay>.login-card>.modal-head{
-  flex:0 0 56vh!important;
-  min-height:360px!important;
+  flex:0 0 46.8dvh!important;
+  min-height:0!important;
   display:flex!important;
   flex-direction:column!important;
   align-items:center!important;
-  justify-content:center!important;
-  padding:36px 24px 78px!important;
+  justify-content:flex-start!important;
+  padding:16.6dvh 20px 0!important;
+  box-sizing:border-box!important;
   background:transparent!important;
   border:0!important;
   text-align:center!important;
@@ -33,24 +35,25 @@
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-width:248px;
-  min-height:52px;
-  margin-top:24px;
-  padding:0 28px;
-  border:1px solid rgba(22,178,192,.55);
-  border-radius:999px;
-  background:rgba(0,43,61,.32);
-  color:rgba(248,253,254,.96);
-  font-size:10.5px;
-  font-weight:700;
-  letter-spacing:.27em;
+  width:min(48vw,414px);
+  height:36px;
+  margin-top:28px;
+  padding:0 22px;
   box-sizing:border-box;
+  border:1px solid rgba(14,141,160,.72);
+  border-radius:999px;
+  background:rgba(0,42,61,.34);
+  color:#f6fbfd;
+  font-size:clamp(10px,2.75vw,13px);
+  font-weight:700;
+  letter-spacing:.31em;
+  white-space:nowrap;
 }
 #loginOverlay>.login-card>.modal-head h2,
 #loginOverlay>.login-card>.modal-head p{display:none!important}
 #loginOverlay>.login-card .login-logo{
   display:block!important;
-  width:min(290px,68vw)!important;
+  width:min(77vw,665px)!important;
   height:auto!important;
   margin:0!important;
   padding:0!important;
@@ -61,49 +64,60 @@
   filter:none!important;
 }
 #loginOverlay>.login-card>.modal-body{
-  flex:1 0 auto!important;
+  flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
-  gap:14px!important;
-  margin-top:-32px!important;
-  padding:64px max(30px,calc((100vw - 430px)/2)) 18px!important;
+  gap:0!important;
+  margin:0!important;
+  padding:52px max(11.25vw,calc((100vw - 430px)/2)) 0!important;
   border-radius:34px 34px 0 0!important;
   background:#fff!important;
-  color:#17313d!important;
+  color:#36576d!important;
   box-sizing:border-box!important;
 }
 #loginOverlay>.login-card>.modal-foot{
   display:flex!important;
   justify-content:center!important;
-  padding:20px max(30px,calc((100vw - 430px)/2)) 38px!important;
-  background:#fff!important;
+  margin-top:-112px!important;
+  padding:0 max(11.25vw,calc((100vw - 430px)/2)) 48px!important;
+  background:transparent!important;
   border:0!important;
+  position:relative!important;
+  z-index:4!important;
 }
-#loginOverlay>.login-card .field{display:flex!important;flex-direction:column!important;gap:6px!important}
-#loginOverlay>.login-card .field label{color:#5f7481!important;font-size:12px!important}
+#loginOverlay>.login-card .field{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  height:52px!important;
+  border-bottom:1.5px solid #a9bccb!important;
+}
+#loginOverlay>.login-card .field + .field{margin-top:21px!important}
+#loginOverlay>.login-card .field label{display:none!important}
 #loginOverlay>.login-card .field input{
   width:100%!important;
-  height:58px!important;
+  height:50px!important;
+  box-sizing:border-box!important;
   padding:0 4px!important;
   border:0!important;
-  border-bottom:1.5px solid #cfd8dd!important;
   border-radius:0!important;
   outline:none!important;
   background:transparent!important;
-  color:#344f5d!important;
+  color:#55799b!important;
   box-shadow:none!important;
   font-size:18px!important;
 }
 #loginOverlay>.login-card #loginSubmit{
   width:100%!important;
-  min-height:58px!important;
+  height:64px!important;
+  min-height:64px!important;
   border:0!important;
   border-radius:999px!important;
-  padding:0 28px!important;
-  background:linear-gradient(100deg,#005177 0%,#006d89 48%,#0692a0 100%)!important;
+  padding:0 30px!important;
+  background:linear-gradient(104deg,#0f738b 0%,#075b77 34%,#004a65 58%,#00344f 100%)!important;
   color:#fff!important;
   font-weight:700!important;
-  letter-spacing:.18em!important;
+  letter-spacing:.24em!important;
   text-transform:uppercase!important;
-  box-shadow:0 12px 24px rgba(0,76,100,.14)!important;
+  box-shadow:0 10px 24px rgba(0,63,85,.13)!important;
 }
