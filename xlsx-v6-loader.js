@@ -1,6 +1,22 @@
-/* Plansul — V6: SheetJS deixa de bloquear a ativação do login.
- * Se o Financeiro tentar importar antes do carregamento terminar, aguardamos a biblioteca. */
+/* Plansul — V8: recuperação de cache + carregamento sob demanda do SheetJS. */
 (function(){
+  'use strict';
+
+  // Compatibilidade com páginas HTML que ainda tenham sido entregues pelo cache
+  // apontando para ?v=7. O próprio loader força os assets críticos da V8.
+  if(!window.__PLANSUL_V8_ACTIVE__){
+    const login=document.createElement('script');
+    login.src='login-v6.js?v=8';
+    login.async=false;
+    document.head.appendChild(login);
+  }
+  if(typeof window.PlansulLoadDashboard!=='function'){
+    const boot=document.createElement('script');
+    boot.src='app.js?v=8';
+    boot.async=false;
+    document.head.appendChild(boot);
+  }
+
   let xlsxPromise=null;
   function waitExistingScript(script){
     return new Promise((resolve,reject)=>{
@@ -27,8 +43,8 @@
   };
 
   document.addEventListener('click',async function(e){
-    const btn=e.target.closest && e.target.closest('#btnUpload');
-    if(!btn || window.XLSX) return;
+    const btn=e.target.closest&&e.target.closest('#btnUpload');
+    if(!btn||window.XLSX) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     const oldText=btn.textContent;
