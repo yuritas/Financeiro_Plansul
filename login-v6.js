@@ -1,4 +1,4 @@
-/* Plansul — V8 Login leve. Mantido neste nome por compatibilidade com páginas em cache. */
+/* Plansul — V9 Login final. Mantido neste nome por compatibilidade com páginas em cache. */
 (function(){
   'use strict';
   const SESSION_KEY='plansul_fluxo_caixa_session';
@@ -8,16 +8,27 @@
   window.__PLANSUL_V8_ACTIVE__=true;
 
   function el(id){ return document.getElementById(id); }
+  function userIcon(){
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"></circle><path d="M4.5 21v-2.2c0-4.1 3.3-7.3 7.5-7.3s7.5 3.2 7.5 7.3V21"></path></svg>';
+  }
+  function lockIcon(){
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><path d="M12 14v3"></path></svg>';
+  }
+  function arrowIcon(){
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 7 5 5-5 5"></path></svg>';
+  }
+  function buttonIdleHtml(){ return 'Entrar'+arrowIcon(); }
+
   function ensureCss(){
     if(document.querySelector('link[data-login-v8]')) return;
     const link=document.createElement('link');
-    link.rel='stylesheet'; link.href='login-v8.css?v=8'; link.dataset.loginV8='1';
+    link.rel='stylesheet'; link.href='login-v8.css?v=9'; link.dataset.loginV8='1';
     document.head.appendChild(link);
   }
   function transformMarkup(){
     const overlay=el('loginOverlay');
-    if(!overlay||overlay.dataset.v8Markup==='1') return;
-    overlay.dataset.v8Markup='1'; overlay.className='';
+    if(!overlay||overlay.dataset.v9Markup==='1') return;
+    overlay.dataset.v9Markup='1'; overlay.className='';
     overlay.setAttribute('aria-label','Acesso à Tesouraria');
     overlay.innerHTML=`
       <section class="login-v8-visual" aria-hidden="true">
@@ -28,11 +39,18 @@
       </section>
       <section class="login-v8-sheet">
         <form class="login-v8-form" id="loginForm" novalidate>
-          <div class="login-v8-field"><label for="loginUser">Usuário</label><input type="text" id="loginUser" autocomplete="username" inputmode="text" required></div>
-          <div class="login-v8-field"><label for="loginPass">Senha</label><input type="password" id="loginPass" autocomplete="current-password" required></div>
+          <div class="login-v8-field">
+            <span class="login-v8-field-icon">${userIcon()}</span>
+            <label for="loginUser">Usuário</label>
+            <input type="text" id="loginUser" autocomplete="username" inputmode="text" placeholder="Usuário" required>
+          </div>
+          <div class="login-v8-field">
+            <span class="login-v8-field-icon">${lockIcon()}</span>
+            <label for="loginPass">Senha</label>
+            <input type="password" id="loginPass" autocomplete="current-password" placeholder="Senha" required>
+          </div>
           <p class="login-v8-message" id="loginError" hidden role="status" aria-live="polite"></p>
-          <div class="login-v8-actions"><button type="submit" class="login-v8-submit" id="loginSubmit">Entrar</button></div>
-          <p class="login-v8-note">Ambiente interno Plansul</p>
+          <div class="login-v8-actions"><button type="submit" class="login-v8-submit" id="loginSubmit">${buttonIdleHtml()}</button></div>
         </form>
       </section>`;
   }
@@ -44,7 +62,7 @@
   function setButtonLoading(loading,label){
     const btn=el('loginSubmit'); if(!btn) return;
     btn.disabled=!!loading;
-    btn.innerHTML=loading?`<span class="login-v8-spinner" aria-hidden="true"></span>${label||'Entrando…'}`:'Entrar';
+    btn.innerHTML=loading?`<span class="login-v8-spinner" aria-hidden="true"></span>${label||'Entrando…'}`:buttonIdleHtml();
   }
   function keepVisible(){
     const overlay=el('loginOverlay'),app=el('app');
@@ -127,7 +145,7 @@
     const form=el('loginForm'),user=el('loginUser'),pass=el('loginPass');
     if(user){ user.placeholder='Usuário'; user.setAttribute('autocapitalize','none'); user.setAttribute('spellcheck','false'); }
     if(pass) pass.placeholder='Senha';
-    if(form&&!form.dataset.v8Bound){ form.dataset.v8Bound='1'; form.addEventListener('submit',submit,true); }
+    if(form&&!form.dataset.v9Bound){ form.dataset.v9Bound='1'; form.addEventListener('submit',submit,true); }
     requestAnimationFrame(()=>{ try{user?.focus({preventScroll:true});}catch(e){} });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
