@@ -12,67 +12,59 @@
   const nativeFetch = window.fetch.bind(window);
   window.fetch = function(input, init){
     if(typeof input === 'string' && input === OLD_ENDPOINT) input = NEW_ENDPOINT;
-    else if(input instanceof Request && input.url === OLD_ENDPOINT) input = new Request(NEW_ENDPOINT, input);
+    else if(typeof Request!=='undefined' && input instanceof Request && input.url === OLD_ENDPOINT) input = new Request(NEW_ENDPOINT, input);
     return nativeFetch(input, init);
   };
 
-  const dashboardCss = [
-    'login-fix.css',
-    'tesouraria-v3.css',
-    'fluxo-v4.css',
-    'fluxo-v4-fundcards.css',
-    'fluxo-v5-theme.css'
-  ];
-  const dashboardScripts = [
-    'app-core.js',
-    'competencias-aplicacoes.js',
-    'competencias-wizard.js',
-    'tesouraria-v3.js',
-    'fluxo-v4.js',
-    'fluxo-v4-ui.js',
-    'fluxo-v4-datefilters.js',
-    'fluxo-v5-theme.js'
-  ];
-
+  const dashboardCss = ['login-fix.css','tesouraria-v3.css','fluxo-v4.css','fluxo-v4-fundcards.css','fluxo-v5-theme.css'];
+  const dashboardScripts = ['app-core.js','competencias-aplicacoes.js','competencias-wizard.js','tesouraria-v3.js','fluxo-v4.js','fluxo-v4-ui.js','fluxo-v4-datefilters.js','fluxo-v5-theme.js'];
   let dashboardPromise = null;
 
   function loadCss(href){
     if(document.querySelector(`link[data-plansul-dashboard-css="${href}"]`)) return;
-    const css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = href + '?v=8';
-    css.dataset.plansulDashboardCss = href;
+    const css=document.createElement('link');
+    css.rel='stylesheet'; css.href=href+'?v=8'; css.dataset.plansulDashboardCss=href;
     document.head.appendChild(css);
   }
-
   function loadScript(src){
     return new Promise((resolve,reject)=>{
-      const existing = document.querySelector(`script[data-plansul-module="${src}"]`);
+      const existing=document.querySelector(`script[data-plansul-module="${src}"]`);
       if(existing){
         if(existing.dataset.loaded==='1') return resolve(src);
         existing.addEventListener('load',()=>resolve(src),{once:true});
         existing.addEventListener('error',()=>reject(new Error('Falha ao carregar '+src)),{once:true});
         return;
       }
-      const el = document.createElement('script');
-      el.src = src + '?v=8';
-      el.async = false;
-      el.dataset.plansulModule = src;
-      el.onload = ()=>{ el.dataset.loaded='1'; resolve(src); };
-      el.onerror = ()=>reject(new Error('Falha ao carregar '+src));
+      const el=document.createElement('script');
+      el.src=src+'?v=8'; el.async=false; el.dataset.plansulModule=src;
+      el.onload=()=>{el.dataset.loaded='1';resolve(src);};
+      el.onerror=()=>reject(new Error('Falha ao carregar '+src));
       document.head.appendChild(el);
     });
   }
+  async function waitLegacyBootstrap(){
+    if(typeof window.PlansulBoot==='function') return true;
+    const existingCore=[...document.scripts].some(s=>(s.getAttribute('src')||'').includes('app-core.js'));
+    if(!existingCore) return false;
+    const limit=Date.now()+2500;
+    while(Date.now()<limit){
+      if(typeof window.PlansulBoot==='function') return true;
+      await new Promise(r=>setTimeout(r,40));
+    }
+    return typeof window.PlansulBoot==='function';
+  }
 
   window.PlansulLoadDashboard = function(){
+    if(typeof window.PlansulBoot==='function') return Promise.resolve(true);
     if(dashboardPromise) return dashboardPromise;
-    dashboardPromise = (async()=>{
+    dashboardPromise=(async()=>{
+      if(await waitLegacyBootstrap()) return true;
       dashboardCss.forEach(loadCss);
       for(const src of dashboardScripts) await loadScript(src);
       return true;
     })().catch(err=>{
-      dashboardPromise = null;
-      console.error('Falha ao carregar o dashboard Plansul:', err);
+      dashboardPromise=null;
+      console.error('Falha ao carregar o dashboard Plansul:',err);
       throw err;
     });
     return dashboardPromise;
