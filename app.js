@@ -1,25 +1,17 @@
-/* Plansul — V12 bootstrap leve e resiliente.
- * O login é carregado primeiro. Os módulos do dashboard só entram quando existe sessão válida. */
+/* Plansul — V13 bootstrap leve e resiliente.
+ * O login é carregado primeiro. O dashboard (um único arquivo consolidado) só entra
+ * quando existe sessão válida. A URL do Apps Script agora vive só em um lugar
+ * (app-core.js, dentro de dashboard.js) — não há mais patch de fetch aqui. */
 (function(){
   'use strict';
-  const ASSET_VERSION=12;
+  const ASSET_VERSION=13;
   window.__PLANSUL_DEFER_BOOT__=true;
   window.__PLANSUL_ASSET_VERSION__=ASSET_VERSION;
 
-  const OLD_ENDPOINT='https://script.google.com/macros/s/AKfycbycMtivGfXTx4pKa3ltR29cY0owrV37fJG0Iy9MVlgg-dE99KuqOc7XgcFe0tjKHQ/exec';
-  const NEW_ENDPOINT='https://script.google.com/macros/s/AKfycbzhn3VwSmd3DIXNFuKvgIeqtpTk6qdTZKlh1fFyVLxQlTrvrt3WFcFFDtp-rJEzD3lk/exec';
-  window.PlansulLoginEndpoint=NEW_ENDPOINT;
+  window.PlansulLoginEndpoint='https://script.google.com/macros/s/AKfycbzhn3VwSmd3DIXNFuKvgIeqtpTk6qdTZKlh1fFyVLxQlTrvrt3WFcFFDtp-rJEzD3lk/exec';
 
-  const nativeFetch=window.fetch.bind(window);
-  window.fetch=function(input,init){
-    if(typeof input==='string'&&input===OLD_ENDPOINT) input=NEW_ENDPOINT;
-    else if(typeof Request!=='undefined'&&input instanceof Request&&input.url===OLD_ENDPOINT) input=new Request(NEW_ENDPOINT,input);
-    return nativeFetch(input,init);
-  };
-
-  const dashboardCss=['login-fix.css','tesouraria-v3.css','fluxo-v4.css','fluxo-v4-fundcards.css','fluxo-v5-theme.css'];
-  const coreScripts=['app-core.js','competencias-aplicacoes.js','competencias-wizard.js','tesouraria-v3.js','fluxo-v4.js','fluxo-v4-ui.js','fluxo-v4-datefilters.js','fluxo-v5-theme.js'];
-  const bridgeScript='dashboard-bridge-v10.js';
+  const dashboardCss=['dashboard.css'];
+  const coreScripts=['dashboard.js'];
   let dashboardPromise=null;
 
   function versioned(path){ return path+'?v='+ASSET_VERSION; }
@@ -55,7 +47,7 @@
 
   async function waitLegacyBootstrap(){
     if(typeof window.PlansulBoot==='function') return true;
-    const existingCore=[...document.scripts].some(s=>(s.getAttribute('src')||'').includes('app-core.js'));
+    const existingCore=[...document.scripts].some(s=>(s.getAttribute('src')||'').includes('dashboard.js'));
     if(!existingCore) return false;
     const limit=Date.now()+3000;
     while(Date.now()<limit){
@@ -75,7 +67,6 @@
       if(!legacyReady){
         for(const src of coreScripts) await loadScript(src);
       }
-      await loadScript(bridgeScript);
       return true;
     })().catch(err=>{
       dashboardPromise=null;

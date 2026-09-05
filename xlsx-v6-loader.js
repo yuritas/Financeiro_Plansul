@@ -1,21 +1,9 @@
-/* Plansul — V8: recuperação de cache + carregamento sob demanda do SheetJS. */
+/* Plansul — V13: carregamento sob demanda do SheetJS.
+ * (O bloco de "recuperação de cache" da V8 foi removido: ele injetava login-v6.js
+ * de novo em toda carga de página, sem condição real de parar, e podia forçar a
+ * tela de login de volta bem depois de um acesso já ter sido concluído.) */
 (function(){
   'use strict';
-
-  // Compatibilidade com páginas HTML que ainda tenham sido entregues pelo cache
-  // apontando para ?v=7. O próprio loader força os assets críticos da V8.
-  if(!window.__PLANSUL_V8_ACTIVE__){
-    const login=document.createElement('script');
-    login.src='login-v6.js?v=8';
-    login.async=false;
-    document.head.appendChild(login);
-  }
-  if(typeof window.PlansulLoadDashboard!=='function'){
-    const boot=document.createElement('script');
-    boot.src='app.js?v=8';
-    boot.async=false;
-    document.head.appendChild(boot);
-  }
 
   let xlsxPromise=null;
   function waitExistingScript(script){
