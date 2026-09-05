@@ -1,13 +1,18 @@
-/* Plansul — V11 Login profissional e visual idêntico ao modelo aprovado.
- * Mantido neste nome para compatibilidade; o HTML V11 força cache novo. */
+/* Plansul — V12 Login final + fluxo de autenticação resiliente.
+ * O login valida a credencial, grava a sessão e reinicia a página em um estado limpo.
+ * Na recarga, a sessão é restaurada e o painel é iniciado sem misturar o ciclo do formulário
+ * com o carregamento dos módulos financeiros. */
 (function(){
   'use strict';
+
   const SESSION_KEY='plansul_fluxo_caixa_session';
   const ENDPOINT='https://script.google.com/macros/s/AKfycbzhn3VwSmd3DIXNFuKvgIeqtpTk6qdTZKlh1fFyVLxQlTrvrt3WFcFFDtp-rJEzD3lk/exec';
+  const AUTH_TIMEOUT_MS=60000;
   let submitting=false;
-  let warmPromise=null;
-  window.PlansulLoginEndpoint=window.PlansulLoginEndpoint||ENDPOINT;
-  window.__PLANSUL_V11_LOGIN__=true;
+  let resuming=false;
+
+  window.PlansulLoginEndpoint=ENDPOINT;
+  window.__PLANSUL_V12_LOGIN__=true;
 
   function el(id){ return document.getElementById(id); }
   function userIcon(){
@@ -21,35 +26,43 @@
   }
   function buttonIdleHtml(){ return 'Entrar'+arrowIcon(); }
 
+  function readStoredSession(){
+    try{
+      const raw=sessionStorage.getItem(SESSION_KEY);
+      if(!raw) return null;
+      const parsed=JSON.parse(raw);
+      return parsed&&parsed.token?parsed:null;
+    }catch(e){ return null; }
+  }
+  function clearStoredSession(){
+    try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+  }
+
   function ensureCss(){
-    if(document.querySelector('link[data-login-v11]')) return;
-    const link=document.createElement('link');
-    link.rel='stylesheet';
-    link.href='login-v8.css?v=11';
-    link.dataset.loginV11='1';
-    document.head.appendChild(link);
-    if(!document.querySelector('link[data-login-effects-v11]')){
+    if(!document.querySelector('link[data-login-v12]')){
+      const link=document.createElement('link');
+      link.rel='stylesheet';
+      link.href='login-v8.css?v=12';
+      link.dataset.loginV12='1';
+      document.head.appendChild(link);
+    }
+    if(!document.querySelector('link[data-login-effects-v12]')){
       const fx=document.createElement('link');
       fx.rel='stylesheet';
-      fx.href='login-v10-effects.css?v=11';
-      fx.dataset.loginEffectsV11='1';
+      fx.href='login-v10-effects.css?v=12';
+      fx.dataset.loginEffectsV12='1';
       document.head.appendChild(fx);
     }
   }
 
   function transformMarkup(){
     const overlay=el('loginOverlay');
-    if(!overlay||overlay.dataset.v11Markup==='1') return;
-    overlay.dataset.v11Markup='1';
+    if(!overlay||overlay.dataset.v12Markup==='1') return;
+    overlay.dataset.v12Markup='1';
     overlay.className='';
     overlay.setAttribute('aria-label','Acesso à Tesouraria');
     overlay.innerHTML=`
-      <section class="login-v8-visual" aria-hidden="true">
-        <div class="login-v8-brand">
-          <img class="login-v8-logo" src="assets/plansul-wordmark.png" alt="">
-          <span class="login-v8-kicker">Tesouraria</span>
-        </div>
-      </section>
+      <section class="login-v8-visual" aria-hidden="true"></section>
       <section class="login-v8-sheet">
         <form class="login-v8-form" id="loginForm" novalidate>
           <div class="login-v8-field">
@@ -87,9 +100,13 @@
     btn.innerHTML=on?`<span class="login-v8-spinner" aria-hidden="true"></span>${label||'Entrando…'}`:buttonIdleHtml();
   }
 
-  function keepVisible(){
-    const overlay=el('loginOverlay'),app=el('app');
-    if(overlay){ overlay.hidden=false; overlay.classList.remove('login-v10-leaving'); }
+  function keepLoginVisible(){
+    const overlay=el('loginOverlay');
+    const app=el('app');
+    if(overlay){
+      overlay.hidden=false;
+      overlay.classList.remove('login-v10-leaving');
+    }
     if(app) app.hidden=true;
   }
 
@@ -103,99 +120,99 @@
 
   async function authenticate(username,password){
     const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),45000);
-    const progress=setTimeout(()=>setMessage('Validando acesso seguro…',false),2200);
-    let response;
+    const timer=setTimeout(()=>controller.abort(),AUTH_TIMEOUT_MS);
+    const progress=setTimeout(()=>setMessage('Validando acesso…',false),1800);
     try{
-      response=await fetch(window.PlansulLoginEndpoint||ENDPOINT,{
+      const response=await fetch(ENDPOINT,{
         method:'POST',
         redirect:'follow',
-        cache:'no-store',
-        credentials:'omit',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify({action:'login',token:null,username,password}),
         signal:controller.signal
       });
+      if(!response.ok) throw Object.assign(new Error('network'),{code:'network'});
+      let json;
+      try{ json=await response.json(); }
+      catch(e){ throw Object.assign(new Error('network'),{code:'network'}); }
+      if(!json||!json.ok){
+        const code=(json&&json.error)||'api-error';
+        throw Object.assign(new Error(code),{code});
+      }
+      const sess={token:json.token,username:json.username,role:json.role,nome:json.nome};
+      sessionStorage.setItem(SESSION_KEY,JSON.stringify(sess));
+      return sess;
     }catch(err){
-      const code=err&&err.name==='AbortError'?'timeout':'network';
-      throw Object.assign(new Error(code),{code});
+      if(err&&err.name==='AbortError') throw Object.assign(new Error('timeout'),{code:'timeout'});
+      if(err&&err.code) throw err;
+      throw Object.assign(new Error('network'),{code:'network'});
     }finally{
       clearTimeout(timer);
       clearTimeout(progress);
     }
-    if(!response.ok) throw Object.assign(new Error('network'),{code:'network'});
-    let json;
-    try{ json=await response.json(); }
-    catch(e){ throw Object.assign(new Error('network'),{code:'network'}); }
-    if(!json||!json.ok){
-      const code=(json&&json.error)||'api-error';
-      throw Object.assign(new Error(code),{code});
-    }
-    const sess={token:json.token,username:json.username,role:json.role,nome:json.nome};
-    try{ sessionStorage.setItem(SESSION_KEY,JSON.stringify(sess)); }catch(e){}
-    return sess;
   }
 
-  function forceBootstrapV11(){
-    return new Promise((resolve,reject)=>{
-      if(typeof window.PlansulLoadDashboard==='function') return resolve();
-      const existing=document.querySelector('script[data-v11-bootstrap]');
-      if(existing){
-        existing.addEventListener('load',resolve,{once:true});
-        existing.addEventListener('error',()=>reject(new Error('bootstrap')),{once:true});
-        return;
+  async function ensureDashboardLoader(){
+    if(typeof window.PlansulLoadDashboard==='function') return true;
+    const existing=[...document.scripts].find(s=>(s.getAttribute('src')||'').includes('app.js'));
+    if(existing){
+      const until=Date.now()+5000;
+      while(Date.now()<until){
+        if(typeof window.PlansulLoadDashboard==='function') return true;
+        await new Promise(r=>setTimeout(r,40));
       }
+    }
+    if(typeof window.PlansulLoadDashboard==='function') return true;
+
+    await new Promise((resolve,reject)=>{
       const script=document.createElement('script');
-      script.src='app.js?v=11';
+      script.src='app.js?v=12';
       script.async=false;
-      script.dataset.v11Bootstrap='1';
       script.onload=resolve;
       script.onerror=()=>reject(new Error('bootstrap'));
       document.head.appendChild(script);
     });
+    return typeof window.PlansulLoadDashboard==='function';
   }
 
-  async function waitForLoader(){
-    if(typeof window.PlansulLoadDashboard!=='function') await forceBootstrapV11();
-    const started=Date.now();
-    while(typeof window.PlansulLoadDashboard!=='function'&&Date.now()-started<4000){
-      await new Promise(r=>setTimeout(r,30));
-    }
-    if(typeof window.PlansulLoadDashboard!=='function') throw Object.assign(new Error('network'),{code:'network'});
-  }
-
-  function warmDashboard(){
-    if(warmPromise) return warmPromise;
-    warmPromise=(async()=>{
-      await waitForLoader();
-      await window.PlansulLoadDashboard();
-      return true;
-    })().catch(err=>{
-      console.warn('Pré-carga do painel não concluída:',err);
-      warmPromise=null;
-      return false;
-    });
-    return warmPromise;
-  }
-
-  async function openDashboard(){
+  async function resumeSavedSession(){
+    const stored=readStoredSession();
+    if(!stored||resuming) return false;
+    resuming=true;
     setBusy(true,'Abrindo painel…');
-    setMessage('Acesso autorizado. Abrindo painel…',false);
-    const warmed=await warmDashboard();
-    if(!warmed || typeof window.PlansulBoot!=='function'){
-      throw Object.assign(new Error('network'),{code:'network'});
+    setMessage('Abrindo painel…',false);
+    try{
+      if(!(await ensureDashboardLoader())) throw new Error('bootstrap');
+      await window.PlansulLoadDashboard();
+      if(typeof window.PlansulBoot!=='function') throw new Error('bootstrap');
+      const opened=await window.PlansulBoot();
+      if(opened===false){
+        clearStoredSession();
+        keepLoginVisible();
+        setMessage('Sua sessão expirou. Entre novamente.',true);
+        setBusy(false);
+        return false;
+      }
+      return true;
+    }catch(err){
+      console.error('V12 resume session',err);
+      keepLoginVisible();
+      setMessage('Não foi possível iniciar o painel. Recarregue a página e tente novamente.',true);
+      setBusy(false);
+      return false;
+    }finally{
+      resuming=false;
     }
-    return await window.PlansulBoot();
   }
 
   async function submit(e){
     e.preventDefault();
-    e.stopImmediatePropagation();
     if(submitting) return;
 
-    const user=el('loginUser'),pass=el('loginPass');
+    const user=el('loginUser');
+    const pass=el('loginPass');
     const username=(user&&user.value||'').trim();
     const password=pass&&pass.value||'';
+
     if(!username||!password){
       setMessage('Informe usuário e senha.',true);
       (username?pass:user)?.focus();
@@ -205,59 +222,59 @@
     submitting=true;
     setBusy(true,'Entrando…');
     setMessage('',false);
-    let authenticated=false;
     try{
       await authenticate(username,password);
-      authenticated=true;
-      const opened=await openDashboard();
-      if(opened===false){
-        throw Object.assign(new Error('dashboard-load-failed'),{code:'dashboard-load-failed'});
-      }
-    }catch(err){
-      keepVisible();
-      if(pass && !authenticated){ pass.value=''; pass.focus(); }
-      if(err&&err.code==='dashboard-load-failed'){
-        setMessage('A sessão foi validada, mas o painel não pôde ser iniciado. Tente novamente.',true);
-      }else{
-        setMessage(friendly(err&&err.code),true);
-      }
-    }finally{
-      submitting=false;
-      const app=el('app');
-      if(!app||app.hidden) setBusy(false);
-    }
-  }
+      setMessage('Acesso autorizado. Abrindo painel…',false);
+      setBusy(true,'Abrindo painel…');
 
-  function scheduleWarmup(){
-    const run=()=>warmDashboard();
-    if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:1800});
-    else setTimeout(run,900);
+      /*
+       * Reiniciar a página depois da autenticação é deliberado: mantém sessionStorage,
+       * mas elimina qualquer estado parcial criado pela tela de login. Na recarga,
+       * resumeSavedSession() abre o dashboard usando um ciclo limpo de scripts.
+       */
+      setTimeout(()=>window.location.reload(),120);
+    }catch(err){
+      console.error('V12 login',err);
+      if(pass){ pass.value=''; pass.focus(); }
+      setMessage(friendly(err&&err.code),true);
+      setBusy(false);
+      submitting=false;
+    }
   }
 
   function init(){
     ensureCss();
     transformMarkup();
-    keepVisible();
-    const form=el('loginForm'),user=el('loginUser'),pass=el('loginPass');
+    keepLoginVisible();
+
+    const form=el('loginForm');
+    const user=el('loginUser');
+    const pass=el('loginPass');
     if(user){
-      user.placeholder='Usuário';
       user.setAttribute('autocapitalize','none');
       user.setAttribute('spellcheck','false');
     }
-    if(pass) pass.placeholder='Senha';
-    if(form&&!form.dataset.v11Bound){
-      form.dataset.v11Bound='1';
-      form.addEventListener('submit',submit,true);
+    if(form&&!form.dataset.v12Bound){
+      form.dataset.v12Bound='1';
+      form.addEventListener('submit',submit);
     }
-    scheduleWarmup();
-    requestAnimationFrame(()=>{ try{user?.focus({preventScroll:true});}catch(e){} });
+
+    const stored=readStoredSession();
+    if(stored){
+      setTimeout(resumeSavedSession,0);
+    }else{
+      requestAnimationFrame(()=>{ try{user?.focus({preventScroll:true});}catch(e){} });
+    }
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
   else init();
 
-  window.addEventListener('pageshow',()=>{
-    const app=el('app');
-    if(!app||app.hidden) keepVisible();
+  window.addEventListener('pageshow',event=>{
+    if(event.persisted){
+      const stored=readStoredSession();
+      if(stored) resumeSavedSession();
+      else keepLoginVisible();
+    }
   });
 })();
