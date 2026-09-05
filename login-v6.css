@@ -1,8 +1,8 @@
-/* Plansul — V11 fallback visual. Mantido neste nome para compatibilidade com HTML legado. */
-@import url('./login-v8.css?v=11');
-@import url('./login-v10-effects.css?v=11');
+/* Plansul — V12 fallback visual. Mantido neste nome por compatibilidade. */
+@import url('./login-v8.css?v=12');
+@import url('./login-v10-effects.css?v=12');
 
-/* Primeira pintura antes do JS transformar o markup: mesma composição do layout aprovado. */
+/* Primeira pintura antes do JS transformar o markup. */
 #loginOverlay>.login-card{
   display:flex!important;
   flex-direction:column!important;
@@ -13,111 +13,85 @@
   margin:0!important;
   border:0!important;
   border-radius:0!important;
-  background:transparent!important;
+  background:#00233d!important;
   box-shadow:none!important;
   overflow:hidden!important;
 }
 #loginOverlay>.login-card>.modal-head{
-  flex:0 0 46.8dvh!important;
+  flex:0 0 auto!important;
+  width:100%!important;
+  aspect-ratio:864/713!important;
   min-height:0!important;
-  display:flex!important;
-  flex-direction:column!important;
-  align-items:center!important;
-  justify-content:flex-start!important;
-  padding:16.6dvh 20px 0!important;
-  box-sizing:border-box!important;
-  background:transparent!important;
-  border:0!important;
-  text-align:center!important;
-}
-#loginOverlay>.login-card>.modal-head::after{
-  content:'•  TESOURARIA';
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:min(48vw,414px);
-  height:36px;
-  margin-top:28px;
-  padding:0 22px;
-  box-sizing:border-box;
-  border:1px solid rgba(14,141,160,.72);
-  border-radius:999px;
-  background:rgba(0,42,61,.34);
-  color:#f6fbfd;
-  font-size:clamp(10px,2.75vw,13px);
-  font-weight:700;
-  letter-spacing:.31em;
-  white-space:nowrap;
-}
-#loginOverlay>.login-card>.modal-head h2,
-#loginOverlay>.login-card>.modal-head p{display:none!important}
-#loginOverlay>.login-card .login-logo{
-  display:block!important;
-  width:min(77vw,665px)!important;
-  height:auto!important;
-  margin:0!important;
   padding:0!important;
-  background:transparent!important;
+  margin:0!important;
+  box-sizing:border-box!important;
+  background:#00233d url('./assets/login-header-final.webp?v=12') center top/100% 100% no-repeat!important;
   border:0!important;
-  border-radius:0!important;
-  box-shadow:none!important;
-  filter:none!important;
 }
+#loginOverlay>.login-card>.modal-head>*{display:none!important}
 #loginOverlay>.login-card>.modal-body{
   flex:1 1 auto!important;
   display:flex!important;
   flex-direction:column!important;
-  gap:0!important;
+  gap:8vw!important;
+  width:100%!important;
   margin:0!important;
-  padding:52px max(11.25vw,calc((100vw - 430px)/2)) 0!important;
-  border-radius:34px 34px 0 0!important;
-  background:#fff!important;
-  color:#36576d!important;
+  padding:10.4vw 11.2vw 0!important;
+  border-radius:5.8vw 5.8vw 0 0!important;
+  background:linear-gradient(180deg,#fff 0%,#fff 68%,#f9fbfe 100%)!important;
+  color:#4f7598!important;
   box-sizing:border-box!important;
 }
 #loginOverlay>.login-card>.modal-foot{
   display:flex!important;
   justify-content:center!important;
-  margin-top:-112px!important;
-  padding:0 max(11.25vw,calc((100vw - 430px)/2)) 48px!important;
+  width:100%!important;
+  margin-top:-20vw!important;
+  padding:0 11.2vw max(28px,env(safe-area-inset-bottom))!important;
   background:transparent!important;
   border:0!important;
   position:relative!important;
   z-index:4!important;
+  box-sizing:border-box!important;
 }
 #loginOverlay>.login-card .field{
   display:flex!important;
   flex-direction:column!important;
   justify-content:center!important;
-  height:52px!important;
-  border-bottom:1.5px solid #a9bccb!important;
+  min-height:58px!important;
+  border-bottom:1.5px solid #9fb3c3!important;
 }
-#loginOverlay>.login-card .field + .field{margin-top:21px!important}
 #loginOverlay>.login-card .field label{display:none!important}
 #loginOverlay>.login-card .field input{
   width:100%!important;
-  height:50px!important;
+  height:58px!important;
   box-sizing:border-box!important;
   padding:0 4px!important;
   border:0!important;
   border-radius:0!important;
   outline:none!important;
   background:transparent!important;
-  color:#55799b!important;
+  color:#4f7598!important;
   box-shadow:none!important;
   font-size:18px!important;
 }
+#loginOverlay>.login-card .field input::placeholder{color:#4f7598!important;opacity:1!important}
 #loginOverlay>.login-card #loginSubmit{
   width:100%!important;
-  height:64px!important;
   min-height:64px!important;
   border:0!important;
   border-radius:999px!important;
   padding:0 30px!important;
-  background:linear-gradient(104deg,#0f738b 0%,#075b77 34%,#004a65 58%,#00344f 100%)!important;
+  background:linear-gradient(105deg,#0a7b95 0%,#086983 23%,#075773 50%,#00445f 73%,#00314f 100%)!important;
   color:#fff!important;
   font-weight:700!important;
   letter-spacing:.24em!important;
   text-transform:uppercase!important;
-  box-shadow:0 10px 24px rgba(0,63,85,.13)!important;
+  box-shadow:0 12px 28px rgba(0,61,86,.12)!important;
+}
+
+@media(min-width:900px){
+  #loginOverlay>.login-card{width:min(100%,864px)!important;margin:0 auto!important}
+  #loginOverlay>.login-card>.modal-body{padding:78px 97px 0!important;gap:69px!important;border-radius:50px 50px 0 0!important}
+  #loginOverlay>.login-card>.modal-foot{margin-top:-160px!important;padding:0 97px 40px!important}
 }
