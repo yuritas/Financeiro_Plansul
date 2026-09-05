@@ -32,7 +32,6 @@
 }
 #loginSubmit.login-v8-submit:hover::before{transform:translateX(120%)}
 #loginOverlay.login-v10-authenticating #loginSubmit.login-v8-submit{animation:plansulLoginButtonGlow 1.35s ease-in-out infinite}
-#loginOverlay.login-v10-authenticating .login-v8-field{opacity:.82}
 
 @media(prefers-reduced-motion:reduce){
   #loginOverlay.login-v10-authenticating #loginSubmit.login-v8-submit{animation:none!important}

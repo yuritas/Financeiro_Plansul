@@ -30,31 +30,10 @@
     --header-h: calc(var(--header-row1-h) + var(--header-row2-h));
     --mobile-nav-h: 60px;
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      color-scheme: dark;
-      --paper:        #081821;
-      --card:         #0f242d;
-      --card-raised:  #142b35;
-      --ink:          #e9f1f3;
-      --ink-soft:     #b4c5ca;
-      --ink-muted:    #7a8d93;
-      --line:         #1f3a46;
-      --line-soft:    #172e38;
-      --accent:       #4fc3b0;
-      --accent-ink:   #062023;
-      --accent-soft:  #113937;
-      --in:           #2fc7b3;
-      --in-text:      #57d9c7;
-      --in-soft:      #113937;
-      --out:          #e8746f;
-      --out-soft:     #3a1e1d;
-      --good:         #2fc7b3;
-      --warning:      #e0a63e;
-      --critical:     #e8746f;
-      --shadow:       0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
-    }
-  }
+  /* V15: o painel deixou de seguir o tema escuro do sistema operacional —
+   * não existe alternância manual de tema no app, e a versão mobile ficava
+   * escura sempre que o aparelho do usuário estava em modo escuro. Agora o
+   * tema claro (tokens de :root acima) é usado sempre, em qualquer dispositivo. */
   :root[data-theme="dark"]{
     color-scheme: dark;
     --paper:        #081821;
@@ -481,6 +460,16 @@
   .pill-realizado{ background: var(--line-soft); color: var(--ink-soft); }
   .pill-previsto{ background: transparent; color: var(--ink-muted); border: 1px dashed var(--line); }
   .table-footer{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding: 10px 2px 0; font-size:12px; color: var(--ink-muted); }
+  /* Totalizador minimalista da Matriz por descrição — soma de recebimentos
+   * e pagamentos de todos os lançamentos do filtro atual. */
+  .matrix-totals{ display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 12px; }
+  .matrix-total-item{ display:flex; align-items:baseline; gap:6px; padding:7px 12px; border-radius:10px; background:var(--paper); border:1px solid var(--line-soft); font-size:12px; }
+  .matrix-total-label{ color:var(--ink-muted); }
+  .matrix-total-value{ font-weight:700; font-size:13px; }
+  .matrix-total-item.in .matrix-total-value{ color:var(--in-text); }
+  .matrix-total-item.out .matrix-total-value{ color:var(--out); }
+  .matrix-total-item.pos .matrix-total-value{ color:var(--in-text); }
+  .matrix-total-item.neg .matrix-total-value{ color:var(--out); }
   .empty-state{ text-align:center; padding: 34px 16px; color: var(--ink-muted); font-size:13px; }
   .kpi-value.warn{ color: var(--warning); }
 

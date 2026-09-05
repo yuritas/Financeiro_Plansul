@@ -86,12 +86,13 @@
   .topbar-controls>.header-dropdown:last-child{grid-column:3;grid-row:2;justify-self:end}
 }
 @media(max-width:760px){
-  #dashboardView>.kpi-row{display:flex!important;flex-direction:column;gap:8px;margin-bottom:12px}
-  #dashboardView>.kpi-row .kpi-tile{min-height:74px;padding:10px 12px;display:grid;grid-template-columns:38px 1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center}
-  #dashboardView>.kpi-row .kpi-icon{grid-row:1/3;grid-column:1;width:34px;height:34px;margin:0}
-  #dashboardView>.kpi-row .kpi-label{grid-column:2;grid-row:1;font-size:12px;margin:0}
-  #dashboardView>.kpi-row .kpi-value{grid-column:3;grid-row:1/3;font-size:clamp(16px,5vw,22px);line-height:1.05;text-align:right;max-width:48vw;overflow-wrap:anywhere}
-  #dashboardView>.kpi-row .kpi-sub,#dashboardView>.kpi-row .kpi-trend{grid-column:2;grid-row:2;margin:2px 0 0;font-size:10.5px}
+  #dashboardView>.kpi-row{display:flex!important;flex-direction:column;gap:7px;margin-bottom:12px}
+  #dashboardView>.kpi-row .kpi-tile{min-height:60px;padding:9px 11px;display:grid;grid-template-columns:30px 1fr auto;grid-template-rows:auto auto auto;column-gap:9px;row-gap:1px;align-items:center}
+  #dashboardView>.kpi-row .kpi-icon{grid-row:1/4;grid-column:1;width:28px;height:28px;margin:0}
+  #dashboardView>.kpi-row .kpi-label{grid-column:2;grid-row:1;font-size:10.5px;margin:0;line-height:1.25}
+  #dashboardView>.kpi-row .kpi-value{grid-column:3;grid-row:1/4;font-size:clamp(14px,4.2vw,18px);line-height:1.05;text-align:right;max-width:46vw;overflow-wrap:anywhere}
+  #dashboardView>.kpi-row .kpi-trend{grid-column:2;grid-row:2;margin:1px 0 0;font-size:9.5px}
+  #dashboardView>.kpi-row .kpi-sub{grid-column:2;grid-row:3;margin:0;font-size:9.5px;line-height:1.25}
   .mobile-section-label{display:block;margin:14px 0 7px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
   #cashRiskRow{display:flex!important;flex-direction:column;gap:8px;margin-bottom:14px}
   #cashRiskRow .cash-risk-card{min-height:68px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;column-gap:10px;align-items:center}
@@ -219,10 +220,14 @@
   .topbar{
     border-bottom:1px solid var(--line-soft)!important;
     box-shadow:0 8px 26px -22px rgba(0,0,0,.5)!important;
-    backdrop-filter:blur(16px);
+    /* V15: backdrop-filter cria um novo bloco de contenção para elementos
+     * position:fixed descendentes (ex.: o popover do calendário), o que
+     * fazia o filtro de datas ser posicionado relativo ao cabeçalho (~100px
+     * de altura) em vez da tela inteira, ficando inacessível. O fundo já é
+     * quase opaco (94%), então o blur não fazia falta visualmente. */
   }
-  html[data-mobile-theme="clean"] .topbar{background:rgba(255,255,255,.94)!important}
-  html[data-mobile-theme="dark"] .topbar{background:rgba(6,16,24,.94)!important}
+  html[data-mobile-theme="clean"] .topbar{background:#fff!important}
+  html[data-mobile-theme="dark"] .topbar{background:#06101a!important}
   .topbar::before{height:2px!important}
   .brand-logo{transition:background .2s ease,padding .2s ease}
   html[data-mobile-theme="dark"] .brand-logo{
@@ -268,7 +273,6 @@
     overflow:hidden;
     position:relative;
   }
-  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile{background:#fff!important}
   html[data-mobile-theme="dark"] #dashboardView>.kpi-row .kpi-tile{background:linear-gradient(135deg,#0d1d28 0%,#102530 100%)!important}
   #dashboardView>.kpi-row .kpi-tile::before{
     content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);opacity:.9;
@@ -277,6 +281,15 @@
   #dashboardView>.kpi-row .kpi-tile:nth-child(3)::before{background:var(--out)}
   #dashboardView>.kpi-row .kpi-tile:nth-child(4)::before{background:#459eea}
   #dashboardView>.kpi-row .kpi-tile:nth-child(5)::before{background:#7f83e8}
+  /* V15: cada card recebe um leve preenchimento com a mesma cor da sua
+   * barrinha lateral, deixando o conjunto mais colorido e fácil de
+   * escanear visualmente — mantém o tema "Clean" claro. */
+  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile{background:color-mix(in srgb,var(--accent) 7%,#fff)!important}
+  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile:nth-child(2){background:color-mix(in srgb,var(--in) 9%,#fff)!important}
+  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile:nth-child(3){background:color-mix(in srgb,var(--out) 8%,#fff)!important}
+  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile:nth-child(4){background:color-mix(in srgb,#459eea 9%,#fff)!important}
+  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile:nth-child(5){background:color-mix(in srgb,#7f83e8 9%,#fff)!important}
+  html[data-mobile-theme="clean"] #dashboardView>.kpi-row .kpi-tile:nth-child(6){background:color-mix(in srgb,#2bc6c9 9%,#fff)!important}
   #dashboardView>.kpi-row .kpi-tile:nth-child(6)::before{background:#2bc6c9}
   #dashboardView>.kpi-row .kpi-value{font-weight:800!important;letter-spacing:-.035em}
   html[data-mobile-theme="dark"] #dashboardView>.kpi-row .kpi-value{color:#f7fbfc}
@@ -357,6 +370,12 @@
   }
   html[data-mobile-theme="dark"] .table-filters input,
   html[data-mobile-theme="dark"] .table-filters select{background:#0d202b!important;color:var(--ink)!important}
+
+  .matrix-totals{gap:6px!important;margin:0 0 10px!important}
+  .matrix-total-item{padding:6px 10px!important;font-size:11px!important;flex:1 1 auto;justify-content:space-between}
+  .matrix-total-value{font-size:12px!important}
+  html[data-mobile-theme="dark"] .matrix-total-item{background:#0d202b!important;border-color:#1c3a49!important}
+  html[data-mobile-theme="clean"] .matrix-total-item{background:var(--paper)!important}
 
   .apps-hero-card,.kpi-tile,.apps-fund-card{
     border-radius:14px!important;border-color:var(--line)!important;box-shadow:none!important;

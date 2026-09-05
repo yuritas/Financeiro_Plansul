@@ -1994,7 +1994,28 @@ function renderDescMatrix(transactions){
   const foot = document.getElementById('tableFooter');
   if(foot) foot.textContent = `${totalRows} lançamento${totalRows===1?'':'s'}`;
 
+  renderDescMatrixTotals(rows);
   renderDescMatrixPagination(totalRows, totalPages, page, pageRows.length);
+}
+
+// Totalizador minimalista da Matriz por descrição — soma recebimentos e
+// pagamentos de TODOS os lançamentos que passam pelo filtro atual (não
+// apenas os da página exibida), para dar uma leitura rápida do período.
+function renderDescMatrixTotals(rows){
+  const el = document.getElementById('matrixTotals');
+  if(!el) return;
+  let recebimentos = 0, pagamentos = 0;
+  (rows||[]).forEach(t=>{
+    if(t.type==='recebimento') recebimentos += Number(t.value)||0;
+    else pagamentos += Number(t.value)||0;
+  });
+  const saldo = recebimentos - pagamentos;
+  const saldoCls = saldo < 0 ? 'neg' : 'pos';
+  el.innerHTML = `
+    <span class="matrix-total-item in"><span class="matrix-total-label">Recebimentos</span><span class="matrix-total-value num">+${formatBRL(recebimentos,true)}</span></span>
+    <span class="matrix-total-item out"><span class="matrix-total-label">Pagamentos</span><span class="matrix-total-value num">-${formatBRL(pagamentos,true)}</span></span>
+    <span class="matrix-total-item ${saldoCls}"><span class="matrix-total-label">Saldo do filtro</span><span class="matrix-total-value num">${formatBRL(saldo,true)}</span></span>
+  `;
 }
 
 function renderDescMatrixPagination(totalRows, totalPages, page, shownRows){
@@ -3345,6 +3366,14 @@ function wireStaticEvents(){
 
   document.getElementById('btnExport').onclick = exportCsv;
 
+  const btnLogout = document.getElementById('btnLogout');
+  if(btnLogout) btnLogout.onclick = async ()=>{
+    try{ if(typeof Api!=='undefined' && Api.logout) await Api.logout(); }catch(e){ /* logout local continua mesmo sem rede */ }
+    try{ stopPolling(); }catch(e){}
+    clearSession();
+    window.location.reload();
+  };
+
   const onFilterChange = debounce(()=>{
     state.filters.search = document.getElementById('fSearch').value;
     state.filters.tipo = document.getElementById('fTipo').value;
@@ -3810,7 +3839,7 @@ if(!window.__PLANSUL_DEFER_BOOT__){
       {label:'Recebimentos realizados',value:formatBRL(k.receivedRealizedTotal),icon:'arrowDownLeft',iconCls:'in',cls:'pos',trend:t.receivedRealizedTotal,sub:`A receber no período: ${formatBRL(k.receivableForecast)}`},
       {label:'Pagamentos realizados',value:formatBRL(k.paidRealizedTotal),icon:'arrowUpRight',iconCls:'out',cls:'neg',trend:t.paidRealizedTotal,sub:`A pagar no período: ${formatBRL(k.payableForecast)}`},
       {label:'Saldo bancário projetado',value:formatBRL(k.projectedBalance),icon:'trendingUp',iconCls:k.projectedBalance<0?'out':'in',cls:k.projectedBalance<0?'neg':'pos',sub:'Saldo bancário ao fim do intervalo'},
-      {label:'Aplicações D+0 / D+1',value:formatBRL(k.investBalance),icon:'clock',sub:'Recursos com liquidez imediata ou até D+1'},
+      {label:'Aplicações - Liquidez Imediata',value:formatBRL(k.investBalance),icon:'clock',sub:'Recursos com Liquidez Imediata (Max. 1 dia útil)'},
       {label:'Liquidez imediata total',value:formatBRL(k.liquidityTotal),icon:'wallet',iconCls:'accent',strong:true,sub:'Saldo projetado + aplicações D+0/D+1'},
     ];
     const row=document.getElementById('kpiRow'); if(row) row.innerHTML=tiles.map(tile=>`<div class="kpi-tile"><div class="kpi-icon ${tile.iconCls||''}">${svgIcon(tile.icon,18)}</div><div class="kpi-label">${escapeHtml(tile.label)}</div><div class="kpi-value num ${tile.cls||''}">${tile.value}</div>${tile.trend!==undefined?trendHtml(tile.trend):''}${tile.sub?`<div class="kpi-sub">${escapeHtml(tile.sub)}</div>`:''}</div>`).join('');
@@ -4041,7 +4070,12 @@ if(!window.__PLANSUL_DEFER_BOOT__){
     try{range=getRangeBounds(currentRangeId,activeData().transactions||[]);}catch(e){range={start:'',end:''};}
     if(!range.start||!range.end)return app.funds||[];
     const startM=range.start.slice(0,7), endM=range.end.slice(0,7);
-    return all.filter(f=>{const m=competenciaMesV4(f.competencia);return m>=startM&&m<=endM;}).sort((a,b)=>a.competencia<b.competencia?1:a.competencia>b.competencia?-1:Number(b.saldoFinal)-Number(a.saldoFinal));
+    const filtered=all.filter(f=>{const m=competenciaMesV4(f.competencia);return m>=startM&&m<=endM;}).sort((a,b)=>a.competencia<b.competencia?1:a.competencia>b.competencia?-1:Number(b.saldoFinal)-Number(a.saldoFinal));
+    // V16: Aplicações é atualizado por competência mensal, não por lançamento diário —
+    // se o período do calendário (o mesmo usado no Fluxo de Caixa) não contém nenhuma
+    // competência enviada, mostra a fotografia mais recente em vez de deixar o
+    // detalhamento por fundo vazio.
+    return filtered.length ? filtered : (app.funds||[]);
   }
 
   function updateApplicationsDetail(){
@@ -4113,7 +4147,26 @@ if(!window.__PLANSUL_DEFER_BOOT__){
   finishApplicationsWizard=async function(){
     if(!wz||!wz.appsResult)return prevFinishApplicationsWizard();
     const nextBtn=document.getElementById('wizardNext');nextBtn.disabled=true;nextBtn.textContent='Salvando…';
-    try{let fileBase64=null;try{fileBase64=await fileToBase64(wz.file);}catch(e){}const funds=wz.appsResult.allFunds||wz.appsResult.funds||[];await saveApplicationsData({filename:wz.file.name,asOfDate:wz.appsResult.asOfDate,totalBalance:wz.appsResult.totalBalance,byBank:wz.appsResult.byBank,funds,fileBase64,fileMime:wz.file.type||''});logUploadHistory({bank:APPLICATIONS_SOURCE,filename:wz.file.name,status:'concluido',rowCount:funds.length});closeUploadModal();showToast(`Aplicações Financeiras atualizadas: ${funds.length} registros.`);}catch(e){guardSession(e);showToast('Não foi possível salvar as Aplicações Financeiras.',true);nextBtn.disabled=false;nextBtn.textContent='Salvar dados';}
+    try{
+      let fileBase64=null;try{fileBase64=await fileToBase64(wz.file);}catch(e){}
+      const newFunds=wz.appsResult.allFunds||wz.appsResult.funds||[];
+      // V16: o backend grava exatamente o array "funds" que mandarmos (substituindo
+      // tudo). Antes disso, cada novo envio apagava competências antigas que não
+      // estivessem no arquivo atual (ex.: relatório mensal que só traz o mês
+      // corrente). Agora mesclamos com o que já está salvo, usando fundo+competência
+      // como chave — o arquivo novo só sobrescreve as linhas que ele realmente traz,
+      // preservando o histórico de meses anteriores.
+      const existingFunds=(normalizeAppsV4(activeData().applications)||{}).allFunds||[];
+      const rowKey=f=>String(f.id||((f.fundKey||fundIdentity(f))+'|'+f.competencia));
+      const mergedMap=new Map();
+      existingFunds.forEach(f=>mergedMap.set(rowKey(f),f));
+      newFunds.forEach(f=>mergedMap.set(rowKey(f),f));
+      const funds=[...mergedMap.values()];
+      await saveApplicationsData({filename:wz.file.name,asOfDate:wz.appsResult.asOfDate,totalBalance:wz.appsResult.totalBalance,byBank:wz.appsResult.byBank,funds,fileBase64,fileMime:wz.file.type||''});
+      logUploadHistory({bank:APPLICATIONS_SOURCE,filename:wz.file.name,status:'concluido',rowCount:newFunds.length});
+      closeUploadModal();
+      showToast(`Aplicações Financeiras atualizadas: ${newFunds.length} fundo(s) neste envio (${funds.length} no histórico).`);
+    }catch(e){guardSession(e);showToast('Não foi possível salvar as Aplicações Financeiras.',true);nextBtn.disabled=false;nextBtn.textContent='Salvar dados';}
   };
 })();
 /* ---- fim: fluxo-v4.js ---- */
@@ -4349,6 +4402,11 @@ if(!window.__PLANSUL_DEFER_BOOT__){
   function applyTheme(theme,persist){
     const next=normalizeTheme(theme);
     root.dataset.mobileTheme=next;
+    // V15: o toggle agora também comanda os tokens de cor principais
+    // (data-theme), já que o app parou de seguir o modo escuro do sistema
+    // operacional. Assim "Dark" continua funcionando de ponta a ponta.
+    if(next==='dark') root.dataset.theme='dark';
+    else root.removeAttribute('data-theme');
     if(persist!==false){
       try{ localStorage.setItem(STORAGE_KEY,next); }catch(e){}
     }
