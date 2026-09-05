@@ -3,6 +3,7 @@
  * Isso evita que uma carga inicial lenta mantenha o usuário preso na tela de login. */
 (function(){
   'use strict';
+  window.__PLANSUL_BRIDGE_V10__=true;
 
   function injectStyle(){
     if(document.getElementById('plansulV10BridgeStyle')) return;
