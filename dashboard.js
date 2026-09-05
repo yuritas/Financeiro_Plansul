@@ -1057,19 +1057,32 @@ let session = null;      // { token, username, role, nome } depois do login
 let pollTimer = null;
 let staticEventsWired = false;
 
+// "Lembrar de mim" (login-v6.js) pode gravar a sessão em localStorage em vez
+// de sessionStorage — estas funções precisam saber ler dali também, senão o
+// painel considera a sessão inexistente logo depois do login com "lembrar de
+// mim" marcado (a recarga que segue o login perderia a sessão gravada).
 function loadStoredSession(){
   try{
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
     return raw ? JSON.parse(raw) : null;
   }catch(e){ return null; }
 }
-function storeSession(s){
+function storeSession(s, remember){
   session = s;
-  try{ sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)); }catch(e){ /* não impede o uso do painel */ }
+  try{
+    if(remember){
+      localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      sessionStorage.removeItem(SESSION_KEY);
+    }else{
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      localStorage.removeItem(SESSION_KEY);
+    }
+  }catch(e){ /* não impede o uso do painel */ }
 }
 function clearSession(){
   session = null;
   try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){ /* non-fatal */ }
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){ /* non-fatal */ }
 }
 
 // Toda chamada ao backend passa por aqui. O Content-Type "text/plain" é

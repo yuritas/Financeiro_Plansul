@@ -12,14 +12,24 @@
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"></noscript>
 <link rel="stylesheet" href="styles.css">
 <script>try{document.documentElement.dataset.mobileTheme=localStorage.getItem('plansul-mobile-theme')==='dark'?'dark':'clean'}catch(e){document.documentElement.dataset.mobileTheme='clean'}</script>
-<link rel="stylesheet" href="login-v6.css?v=12">
+<link rel="stylesheet" href="login-v6.css?v=14">
 </head>
 <body>
 
 <!-- Tela de login -->
-<div id="loginOverlay" data-v12-markup="1" aria-label="Acesso à Tesouraria">
+<div id="loginOverlay" data-v14-markup="1" aria-label="Acesso à Tesouraria">
+  <div class="login-v8-ring login-v8-ring-1" aria-hidden="true"></div>
+  <div class="login-v8-ring login-v8-ring-2" aria-hidden="true"></div>
+  <div class="login-v8-ring login-v8-ring-3" aria-hidden="true"></div>
+  <div class="login-v8-ring login-v8-ring-4" aria-hidden="true"></div>
   <section class="login-v8-visual" aria-hidden="true"></section>
+  <div class="login-v8-desktop-brand" aria-hidden="true">
+    <img class="login-v8-desktop-logo" src="./assets/plansul-wordmark.png?v=14" alt="">
+    <span class="login-v8-desktop-badge">TESOURARIA</span>
+  </div>
   <section class="login-v8-sheet">
+    <p class="login-v8-desktop-heading">Acesso à Tesouraria</p>
+    <p class="login-v8-desktop-sub">Entre com suas credenciais para continuar</p>
     <form class="login-v8-form" id="loginForm" novalidate>
       <div class="login-v8-field">
         <span class="login-v8-field-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="4"></circle><path d="M4.5 21v-2.2c0-4.1 3.3-7.3 7.5-7.3s7.5 3.2 7.5 7.3V21"></path></svg></span>
@@ -30,6 +40,10 @@
         <span class="login-v8-field-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><path d="M12 14v3"></path></svg></span>
         <label for="loginPass">Senha</label>
         <input type="password" id="loginPass" autocomplete="current-password" placeholder="Senha" required>
+      </div>
+      <div class="login-v8-desktop-row">
+        <label class="login-v8-remember"><input type="checkbox" id="loginRemember"> Lembrar de mim</label>
+        <button type="button" class="login-v8-forgot" id="loginForgotBtn">Esqueci minha senha</button>
       </div>
       <p class="login-v8-message" id="loginError" hidden role="status" aria-live="polite"></p>
       <div class="login-v8-actions">
@@ -411,7 +425,7 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="login-v6.js?v=12"></script>
+<script src="login-v6.js?v=14"></script>
 <script src="app.js?v=13"></script>
 <script async data-plansul-xlsx="1" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="xlsx-v6-loader.js?v=13"></script>

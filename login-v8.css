@@ -205,6 +205,23 @@
 @keyframes loginV8Spin{to{transform:rotate(360deg)}}
 .login-v8-note{display:none!important}
 
+/* O wizard "esqueci minha senha" (login-v6.js) usa o mesmo componente de
+   modal do resto do painel (.modal-overlay, de styles.css), que normalmente
+   fica em z-index:70 — bem abaixo do #loginOverlay (z-index:10000). Sem isto
+   ele ficaria invisível atrás da tela de login. */
+#resetOverlay{z-index:10050}
+
+/* Elementos exclusivos da versão desktop (ver @media(min-width:900px) abaixo).
+   Ficam ocultos por padrão — a versão mobile usa o mesmíssimo HTML, só que
+   nunca revela estas classes, então nada muda visualmente nela. */
+.login-v8-ring,
+.login-v8-desktop-brand,
+.login-v8-desktop-heading,
+.login-v8-desktop-sub,
+.login-v8-desktop-row{
+  display:none;
+}
+
 /* Em telas mais estreitas, mantém as proporções da arte de 864x1536. */
 @media(max-width:520px){
   .login-v8-sheet{padding-top:10.4vw;border-radius:5.8vw 5.8vw 0 0}
@@ -215,33 +232,171 @@
   #loginSubmit.login-v8-submit{height:14.7vw;min-height:60px}
 }
 
-/* Desktop: mesma linguagem visual, em um painel central com proporções controladas. */
+/* Desktop: fundo em degradê ocupando a página inteira (aprovado pelo usuário
+   em prévia), logo + badge "TESOURARIA" reaproveitados no mesmo molde de
+   sempre, e o formulário flutuando direto sobre o degradê — nada de "cartão"
+   delimitado. Não interfere em nenhuma regra usada abaixo de 900px. */
 @media(min-width:900px){
   #loginOverlay{
     align-items:center;
     justify-content:flex-start;
     overflow:auto;
-    background:#00233d;
+    padding-bottom:48px;
+    background:
+      radial-gradient(46% 60% at 88% 6%,rgba(42,168,155,.20),transparent 60%),
+      radial-gradient(50% 46% at 8% 96%,rgba(42,168,155,.14),transparent 60%),
+      linear-gradient(160deg,#04304f 0%,#052a46 32%,#041f34 62%,#031524 100%);
   }
-  .login-v8-visual{
-    width:min(100%,864px);
-    flex:0 0 auto;
+
+  .login-v8-visual{display:none}
+
+  .login-v8-ring{
+    display:block;
+    position:fixed;
+    z-index:0;
+    border-radius:50%;
+    border:1.5px solid rgba(120,190,210,.14);
+    pointer-events:none;
   }
+  .login-v8-ring-1{width:520px;height:520px;top:-220px;right:-160px;border-color:rgba(120,190,210,.20)}
+  .login-v8-ring-2{width:340px;height:340px;top:-60px;right:60px;border-color:rgba(120,190,210,.12)}
+  .login-v8-ring-3{width:460px;height:460px;bottom:-220px;left:-180px;border-color:rgba(120,190,210,.16)}
+  .login-v8-ring-4{width:280px;height:280px;bottom:-60px;left:80px;border-color:rgba(120,190,210,.10)}
+
+  .login-v8-desktop-brand{
+    display:flex;
+    position:relative;
+    z-index:2;
+    flex-direction:column;
+    align-items:center;
+    gap:22px;
+    margin:8vh 0 0;
+  }
+  .login-v8-desktop-logo{height:56px;width:auto;display:block}
+  .login-v8-desktop-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    border:1.5px solid rgba(120,220,205,.45);
+    border-radius:999px;
+    padding:9px 22px;
+    color:#eafbf7;
+    font:700 13px/1 "IBM Plex Sans",sans-serif;
+    letter-spacing:.22em;
+  }
+  .login-v8-desktop-badge::before{
+    content:"";
+    width:8px;height:8px;border-radius:50%;
+    background:#2fe0c9;
+    box-shadow:0 0 10px 2px rgba(47,224,201,.6);
+  }
+
+  .login-v8-desktop-heading{
+    display:block;
+    position:relative;z-index:2;
+    text-align:center;
+    color:#f2f8f9;
+    font-size:24px;
+    font-weight:700;
+    margin:6vh 0 6px;
+  }
+  .login-v8-desktop-sub{
+    display:block;
+    position:relative;z-index:2;
+    text-align:center;
+    color:#9db9c6;
+    font-size:13px;
+    margin:0 0 30px;
+  }
+
   .login-v8-sheet{
-    width:min(100%,864px);
-    flex:1 0 auto;
-    min-height:52vh;
-    padding-top:78px;
-    border-radius:50px 50px 0 0;
+    display:block;
+    position:relative;
+    z-index:2;
+    width:100%;
+    max-width:460px;
+    flex:0 0 auto;
+    min-height:0;
+    margin:0 auto;
+    padding:0 24px 40px;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
   }
-  .login-v8-form{width:670px}
-  .login-v8-field{height:70px;grid-template-columns:102px minmax(0,1fr)}
-  .login-v8-field + .login-v8-field{margin-top:69px}
-  .login-v8-field-icon{width:61px;height:61px}
-  .login-v8-field-icon svg{width:53px;height:53px}
-  .login-v8-field input{font-size:36px;padding-left:16px}
-  .login-v8-actions{padding-top:92px}
-  #loginSubmit.login-v8-submit{height:127px;font-size:30px;gap:34px}
+  .login-v8-form{width:100%;max-width:none}
+
+  .login-v8-field{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    height:56px;
+    grid-template-columns:none;
+    padding:0 22px;
+    border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;
+    background:rgba(255,255,255,.07);
+  }
+  .login-v8-field + .login-v8-field{margin-top:16px}
+  .login-v8-field:focus-within{
+    border-color:rgba(120,220,205,.55);
+    background:rgba(255,255,255,.10);
+  }
+  .login-v8-field-icon{width:19px;height:19px;color:#8fb6c2}
+  .login-v8-field-icon svg{width:19px;height:19px}
+  .login-v8-field input{font-size:15px;padding-left:0;color:#f2f8f9}
+  .login-v8-field input::placeholder{color:#7f9aa7}
+
+  .login-v8-desktop-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin:18px 4px 0;
+  }
+  .login-v8-remember{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:#a9c2cd;
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  .login-v8-remember input{width:14px;height:14px;accent-color:#2aa89b}
+  .login-v8-forgot{
+    background:none;
+    border:0;
+    padding:0;
+    color:#5fd1c4;
+    font-size:12.5px;
+    font-weight:600;
+    font-family:inherit;
+    cursor:pointer;
+  }
+  .login-v8-forgot:hover{text-decoration:underline}
+
+  #loginError.login-v8-message{
+    margin-top:16px;
+    background:rgba(255,245,244,.08);
+    color:#ff9d97;
+    border-color:rgba(239,216,214,.25);
+  }
+  #loginError.login-v8-message.login-v8-info{
+    background:rgba(243,248,250,.08);
+    color:#bcd8de;
+    border-color:rgba(220,233,234,.2);
+  }
+
+  .login-v8-actions{padding-top:28px}
+  #loginSubmit.login-v8-submit{
+    height:56px;
+    padding:0 7vw;
+    gap:10px;
+    background:linear-gradient(100deg,#f5fbfa 0%,#ffffff 60%);
+    color:#04263f;
+    font-size:14.5px;
+    letter-spacing:.14em;
+    box-shadow:0 16px 30px -10px rgba(0,0,0,.45);
+  }
+  #loginSubmit.login-v8-submit svg{width:17px;height:17px}
 }
 
 @media(max-height:700px) and (max-width:899px){
