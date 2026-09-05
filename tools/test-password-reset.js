@@ -38,61 +38,44 @@ const resets=new Sheet('ResetTokens',['id','username','codeHash','expiresAt','us
 const sheets={Usuarios:users,ResetTokens:resets};
 const ss={getSheetByName:n=>sheets[n]||null};
 const context={
-  console,
-  Date,
-  Math,
-  JSON,
-  String,
-  Number,
-  RegExp,
-  isFinite,
+  console,Date,Math,JSON,String,Number,RegExp,isFinite,
   PropertiesService:{getScriptProperties:()=>props},
   CacheService:{getScriptCache:()=>cache},
   SpreadsheetApp:{openById:()=>ss,getActiveSpreadsheet:()=>ss},
   LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>{}})},
   MailApp:{sendEmail:o=>sent.push(o)},
-  Utilities:{
-    DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},
-    computeDigest:(_alg,str)=>Array.from(crypto.createHash('sha256').update(String(str),'utf8').digest()),
-    getUuid:()=>crypto.randomUUID()
-  },
+  Utilities:{DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_alg,str)=>Array.from(crypto.createHash('sha256').update(String(str),'utf8').digest()),getUuid:()=>crypto.randomUUID()},
   ContentService:{createTextOutput:()=>({setMimeType(){return this;}}),MimeType:{JSON:'json'}},
-  Session:{getScriptTimeZone:()=> 'America/Bahia'},
-  MimeType:{PLAIN_TEXT:'text/plain'}
+  Session:{getScriptTimeZone:()=> 'America/Bahia'},MimeType:{PLAIN_TEXT:'text/plain'}
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync('apps-script/Code.gs','utf8'),context,{filename:'Code.gs'});
 
 function assert(ok,msg){if(!ok)throw new Error(msg);}
 function expectCode(fn,code){try{fn();throw new Error('Esperava '+code);}catch(e){if(e.code!==code)throw e;}}
+const GENERIC='Se o e-mail existir, um código foi enviado.';
 
 const salt='salt-a';
 const oldPass='SenhaAntiga123';
 users.appendRow(['financeiro',salt,context.makePasswordHash(salt,oldPass),'financeiro','Financeiro',0,'','financeiro@plansul.test']);
 
-// Resposta genérica para conta inexistente e nenhum e-mail enviado.
 let r=context.doRequestPasswordReset('naoexiste@plansul.test');
-assert(r.message===context.RESET_GENERIC_MESSAGE,'mensagem genérica ausente');
+assert(r.message===GENERIC,'mensagem genérica ausente');
 assert(sent.length===0,'não deve enviar para conta inexistente');
 
-// Pedido válido envia código e cria token hashado.
 r=context.doRequestPasswordReset('financeiro');
-assert(r.message===context.RESET_GENERIC_MESSAGE,'mensagem deve continuar genérica');
+assert(r.message===GENERIC,'mensagem deve continuar genérica');
 assert(sent.length===1,'deveria enviar um e-mail');
 assert(resets.rows.length===2,'deveria criar token');
 assert(!/\b\d{6}\b/.test(String(resets.rows[1][2])),'hash não deve guardar código puro');
 const code=(sent[0].body.match(/\b(\d{6})\b/)||[])[1];
 assert(code,'código não encontrado no e-mail simulado');
 
-// Throttle público de 60s.
 expectCode(()=>context.doRequestPasswordReset('financeiro'),'reset_throttled');
-
-// Quatro erros mantêm token; quinto invalida.
 for(let i=0;i<4;i++)expectCode(()=>context.doVerifyResetCode('financeiro','000000'),'reset_code_invalid');
 expectCode(()=>context.doVerifyResetCode('financeiro','000000'),'reset_attempts_exceeded');
 assert(resets.rows[1][4],'token deveria estar marcado como usado após 5 erros');
 
-// Novo código após limpar caches simulando passagem dos 60s.
 cache.remove(context.resetRequestCacheKey('financeiro'));
 cache.remove(context.resetCanonicalCacheKey('financeiro'));
 context.doRequestPasswordReset('financeiro');
@@ -100,7 +83,6 @@ assert(sent.length===2,'deveria reenviar um novo código');
 const code2=(sent[1].body.match(/\b(\d{6})\b/)||[])[1];
 assert(context.doVerifyResetCode('financeiro',code2).verified===true,'código correto deveria validar');
 
-// Sessão antiga deve cair depois da redefinição.
 cache.put('sess_old',JSON.stringify({username:'financeiro',role:'financeiro',nome:'Financeiro',authVersion:0}));
 expectCode(()=>context.doResetPassword('financeiro',code2,'fraca'),'weak_password');
 const out=context.doResetPassword('financeiro',code2,'NovaSenhaForte123');
