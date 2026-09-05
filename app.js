@@ -13,14 +13,14 @@
     return nativeFetch(input, init);
   };
   ['login-fix.css','tesouraria-v3.css','fluxo-v4.css','fluxo-v4-fundcards.css','fluxo-v5-theme.css'].forEach(href=>{
-    const css=document.createElement('link'); css.rel='stylesheet'; css.href=href; document.head.appendChild(css);
+    const css=document.createElement('link'); css.rel='stylesheet'; css.href=href+'?v=7'; document.head.appendChild(css);
   });
 
   const moduleScripts = ['app-core.js', 'competencias-aplicacoes.js', 'competencias-wizard.js', 'tesouraria-v3.js', 'fluxo-v4.js', 'fluxo-v4-ui.js', 'fluxo-v4-datefilters.js', 'fluxo-v5-theme.js'];
   function loadPlansulModule(src){
     return new Promise((resolve,reject)=>{
       const el=document.createElement('script');
-      el.src=src;
+      el.src=src+'?v=7';
       el.async=false;
       el.onload=()=>resolve(src);
       el.onerror=()=>reject(new Error('Falha ao carregar '+src));
