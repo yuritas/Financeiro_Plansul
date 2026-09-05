@@ -54,13 +54,14 @@
   function friendly(code){
     if(code==='invalid_credentials') return 'Usuário ou senha inválidos.';
     if(code==='locked') return 'Acesso temporariamente bloqueado. Aguarde alguns minutos e tente novamente.';
-    if(code==='timeout') return 'O servidor demorou mais que o esperado. Tente novamente.';
+    if(code==='timeout') return 'A validação demorou mais que o esperado. Tente novamente.';
     if(code==='network') return 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
     return 'Não foi possível realizar o acesso. Tente novamente.';
   }
   async function authenticate(username,password){
     const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),12000);
+    const timer=setTimeout(()=>controller.abort(),35000);
+    const progress=setTimeout(()=>setMessage('Validando acesso seguro…',false),2500);
     let response;
     try{
       response=await fetch(window.PlansulLoginEndpoint||ENDPOINT,{
@@ -71,7 +72,7 @@
     }catch(err){
       const code=err&&err.name==='AbortError'?'timeout':'network';
       throw Object.assign(new Error(code),{code});
-    }finally{ clearTimeout(timer); }
+    }finally{ clearTimeout(timer); clearTimeout(progress); }
     if(!response.ok) throw Object.assign(new Error('network'),{code:'network'});
     let json;
     try{ json=await response.json(); }catch(e){ throw Object.assign(new Error('network'),{code:'network'}); }
