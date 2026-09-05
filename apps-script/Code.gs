@@ -23,6 +23,12 @@ const SHEET_ACCOUNTS = 'Contas';
 const SHEET_SOURCES = 'Fontes';
 const SHEET_HISTORY = 'Historico';
 const SHEET_APPLICATIONS = 'Aplicacoes';
+const SHEET_RESET_TOKENS = 'ResetTokens';
+const RESET_CODE_TTL_MINUTES = 10;
+const RESET_MAX_ATTEMPTS = 5;
+const RESET_REQUEST_THROTTLE_SECONDS = 60;
+const RESET_TOKEN_KEEP = 500;
+const RESET_GENERIC_MESSAGE = 'Se o e-mail existir, um código foi enviado.';
 const APPLICATIONS_STALE_DAYS = 60; // acima disso, o fundo é marcado como "desatualizado"
 
 /* ==== PONTO DE ENTRADA HTTP ==== */
@@ -43,6 +49,15 @@ function doPost(e){
     switch(action){
       case 'login':
         result = doLogin(body.username, body.password);
+        break;
+      case 'requestPasswordReset':
+        result = doRequestPasswordReset(body.identifier || body.username || body.email);
+        break;
+      case 'verifyResetCode':
+        result = doVerifyResetCode(body.identifier || body.username || body.email, body.code);
+        break;
+      case 'resetPassword':
+        result = doResetPassword(body.identifier || body.username || body.email, body.code, body.newPassword);
         break;
       case 'getData':
         requireSession(body.token);
@@ -106,11 +121,34 @@ function mkError(code, message){
 }
 
 /* ==== SESSÕES (CacheService — expira sozinho, nada fica salvo em disco) ==== */
+function normalizeUserSessionKey(username){
+  return String(username||'').trim().toLowerCase();
+}
+function sessionVersionPropertyKey(username){
+  return 'AUTH_VERSION_' + sha256Hex(normalizeUserSessionKey(username)).slice(0,32);
+}
+function getUserSessionVersion(username){
+  return Number(PropertiesService.getScriptProperties().getProperty(sessionVersionPropertyKey(username)) || 0);
+}
+function bumpUserSessionVersion(username){
+  const props = PropertiesService.getScriptProperties();
+  const key = sessionVersionPropertyKey(username);
+  const next = Number(props.getProperty(key) || 0) + 1;
+  props.setProperty(key, String(next));
+  return next;
+}
 function requireSession(token){
   if(!token) throw mkError('session_expired');
-  const raw = CacheService.getScriptCache().get('sess_' + token);
+  const cache = CacheService.getScriptCache();
+  const raw = cache.get('sess_' + token);
   if(!raw) throw mkError('session_expired');
   const sess = JSON.parse(raw);
+  const cachedVersion = Number(sess.authVersion || 0);
+  const currentVersion = getUserSessionVersion(sess.username);
+  if(cachedVersion !== currentVersion){
+    cache.remove('sess_' + token);
+    throw mkError('session_expired');
+  }
   sess.token = token;
   return sess;
 }
@@ -188,10 +226,193 @@ function doLogin(username, password){
     const role = String(row[3]||'').trim();
     const nome = String(row[4]||row[0]);
     const token = Utilities.getUuid();
-    CacheService.getScriptCache().put('sess_'+token, JSON.stringify({ username: row[0], role, nome }), SESSION_TTL_SECONDS);
+    CacheService.getScriptCache().put('sess_'+token, JSON.stringify({ username: row[0], role, nome, authVersion:getUserSessionVersion(row[0]) }), SESSION_TTL_SECONDS);
     return { token, role, nome, username: row[0] };
   }
   throw mkError('invalid_credentials');
+}
+
+
+/* ==== RECUPERAÇÃO DE SENHA POR E-MAIL ==== */
+function normalizeResetIdentifier(value){
+  return String(value||'').trim().toLowerCase();
+}
+function findUserByIdentifier(identifier){
+  const key = normalizeResetIdentifier(identifier);
+  if(!key) return null;
+  const sheet = getSheet(SHEET_USERS);
+  const data = sheet.getDataRange().getValues();
+  for(let i=1;i<data.length;i++){
+    const row = data[i];
+    const username = String(row[0]||'').trim();
+    const email = String(row[7]||'').trim();
+    if(username.toLowerCase() === key || (email && email.toLowerCase() === key)){
+      return { sheet, row, rowIndex:i+1, username, email };
+    }
+  }
+  return null;
+}
+function resetRequestCacheKey(identifier){
+  return 'reset_req_' + sha256Hex(normalizeResetIdentifier(identifier)).slice(0,32);
+}
+function resetCanonicalCacheKey(username){
+  return 'reset_mail_' + sha256Hex(normalizeUserSessionKey(username)).slice(0,32);
+}
+function generateResetCode(){
+  const seed = sha256Hex(Utilities.getUuid() + ':' + Date.now() + ':' + Utilities.getUuid());
+  return String((parseInt(seed.slice(0,8),16) % 900000) + 100000);
+}
+function resetCodeHash(tokenId, code){
+  return sha256Hex(String(tokenId||'') + ':' + String(code||''));
+}
+function getResetTokenSheet(){
+  return getSheet(SHEET_RESET_TOKENS);
+}
+function invalidateActiveResetTokens(username){
+  const sheet = getResetTokenSheet();
+  const data = sheet.getDataRange().getValues();
+  const now = new Date().toISOString();
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][1]||'').trim().toLowerCase() !== String(username||'').trim().toLowerCase()) continue;
+    if(data[i][4]) continue;
+    sheet.getRange(i+1,5).setValue(now);
+  }
+}
+function appendResetToken(username, code){
+  const sheet = getResetTokenSheet();
+  const id = Utilities.getUuid();
+  const now = new Date();
+  sheet.appendRow([
+    id,
+    username,
+    resetCodeHash(id, code),
+    new Date(now.getTime() + RESET_CODE_TTL_MINUTES*60*1000).toISOString(),
+    '',
+    0,
+    now.toISOString(),
+  ]);
+  pruneResetTokens(sheet);
+  return { id:id, sheet:sheet, rowIndex:sheet.getLastRow() };
+}
+function pruneResetTokens(sheet){
+  const dataRows = Math.max(0, sheet.getLastRow()-1);
+  if(dataRows > RESET_TOKEN_KEEP) sheet.deleteRows(2, dataRows-RESET_TOKEN_KEEP);
+}
+function latestResetToken(username){
+  const sheet = getResetTokenSheet();
+  const data = sheet.getDataRange().getValues();
+  const key = String(username||'').trim().toLowerCase();
+  for(let i=data.length-1;i>=1;i--){
+    if(String(data[i][1]||'').trim().toLowerCase() !== key) continue;
+    return {
+      sheet:sheet,
+      rowIndex:i+1,
+      id:String(data[i][0]||''),
+      username:String(data[i][1]||''),
+      codeHash:String(data[i][2]||''),
+      expiresAt:String(data[i][3]||''),
+      usedAt:String(data[i][4]||''),
+      attempts:Number(data[i][5])||0,
+      requestedAt:String(data[i][6]||''),
+    };
+  }
+  return null;
+}
+function markResetTokenUsed(token){
+  if(token && token.sheet && token.rowIndex) token.sheet.getRange(token.rowIndex,5).setValue(new Date().toISOString());
+}
+function validateNewPassword(password, username){
+  const p = String(password||'');
+  if(p.length < 10 || !/[a-z]/.test(p) || !/[A-Z]/.test(p) || !/\d/.test(p)){
+    throw mkError('weak_password','Use pelo menos 10 caracteres, com letra maiúscula, letra minúscula e número.');
+  }
+  if(normalizeResetIdentifier(p) === normalizeResetIdentifier(username)) throw mkError('weak_password','A senha não pode ser igual ao usuário.');
+}
+function verifyResetCodeInternal(identifier, code){
+  const user = findUserByIdentifier(identifier);
+  if(!user || !/^\d{6}$/.test(String(code||''))) throw mkError('reset_code_invalid');
+  const token = latestResetToken(user.username);
+  if(!token || token.usedAt) throw mkError('reset_code_invalid');
+  const expires = token.expiresAt ? new Date(token.expiresAt).getTime() : 0;
+  if(!expires || Date.now() > expires){
+    markResetTokenUsed(token);
+    throw mkError('reset_code_expired');
+  }
+  if(token.attempts >= RESET_MAX_ATTEMPTS){
+    markResetTokenUsed(token);
+    throw mkError('reset_attempts_exceeded');
+  }
+  if(resetCodeHash(token.id, String(code)) !== token.codeHash){
+    const attempts = token.attempts + 1;
+    token.sheet.getRange(token.rowIndex,6).setValue(attempts);
+    if(attempts >= RESET_MAX_ATTEMPTS){
+      markResetTokenUsed(token);
+      throw mkError('reset_attempts_exceeded');
+    }
+    throw mkError('reset_code_invalid');
+  }
+  return { user:user, token:token };
+}
+function doRequestPasswordReset(identifier){
+  const key = normalizeResetIdentifier(identifier);
+  if(!key) throw mkError('invalid_argument','Informe usuário ou e-mail.');
+
+  const cache = CacheService.getScriptCache();
+  const publicThrottleKey = resetRequestCacheKey(key);
+  if(cache.get(publicThrottleKey)) throw mkError('reset_throttled');
+  cache.put(publicThrottleKey, '1', RESET_REQUEST_THROTTLE_SECONDS);
+
+  const user = findUserByIdentifier(key);
+  if(user && user.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)){
+    const canonicalThrottleKey = resetCanonicalCacheKey(user.username);
+    if(!cache.get(canonicalThrottleKey)){
+      const lock = LockService.getScriptLock();
+      if(lock.tryLock(8000)){
+        try{
+          if(!cache.get(canonicalThrottleKey)){
+            const code = generateResetCode();
+            invalidateActiveResetTokens(user.username);
+            const token = appendResetToken(user.username, code);
+            try{
+              MailApp.sendEmail({
+                to:user.email,
+                subject:'Código de redefinição de senha — Plansul Tesouraria',
+                name:'Plansul Tesouraria',
+                body:'Seu código de redefinição de senha é ' + code + '. Ele expira em ' + RESET_CODE_TTL_MINUTES + ' minutos. Se você não solicitou esta alteração, ignore este e-mail.',
+                htmlBody:'<div style="font-family:Arial,sans-serif;color:#153544;line-height:1.5"><p>Olá,</p><p>Use o código abaixo para redefinir sua senha de acesso à <b>Plansul Tesouraria</b>:</p><p style="font-size:30px;font-weight:700;letter-spacing:8px;color:#024766;margin:24px 0">' + code + '</p><p>O código expira em <b>' + RESET_CODE_TTL_MINUTES + ' minutos</b> e pode ser usado uma única vez.</p><p style="color:#687d86;font-size:12px">Se você não solicitou esta alteração, ignore este e-mail.</p></div>'
+              });
+              cache.put(canonicalThrottleKey, '1', RESET_REQUEST_THROTTLE_SECONDS);
+            }catch(mailErr){
+              markResetTokenUsed(token);
+              console.error('requestPasswordReset MailApp', mailErr);
+            }
+          }
+        }finally{ lock.releaseLock(); }
+      }
+    }
+  }
+  return { message:RESET_GENERIC_MESSAGE };
+}
+function doVerifyResetCode(identifier, code){
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(8000)) throw mkError('busy');
+  try{
+    verifyResetCodeInternal(identifier, code);
+    return { verified:true };
+  }finally{ lock.releaseLock(); }
+}
+function doResetPassword(identifier, code, newPassword){
+  const lock = LockService.getScriptLock();
+  if(!lock.tryLock(8000)) throw mkError('busy');
+  try{
+    const verified = verifyResetCodeInternal(identifier, code);
+    const user = verified.user;
+    validateNewPassword(newPassword, user.username);
+    setUserPassword(user.username, String(user.row[3]||''), String(user.row[4]||user.username), newPassword, user.email);
+    markResetTokenUsed(verified.token);
+    bumpUserSessionVersion(user.username);
+    return { reset:true, username:user.username };
+  }finally{ lock.releaseLock(); }
 }
 
 /* ==== LEITURA DOS DADOS DO PAINEL ==== */
@@ -612,6 +833,7 @@ function onOpen(){
     .addItem('Configurar planilha (1ª vez)', 'setupSpreadsheet')
     .addSeparator()
     .addItem('Definir senha de usuário', 'promptSetPassword')
+    .addItem('Definir e-mail de usuário', 'promptSetUserEmail')
     .addItem('Criar novo usuário', 'promptCreateUser')
     .addToUi();
 }
@@ -620,11 +842,12 @@ function onOpen(){
 // Rode isso uma vez, logo depois de criar a planilha (veja SETUP.md).
 function setupSpreadsheet(){
   const ss = getSS();
-  ensureSheet(ss, SHEET_USERS, ['username','salt','passwordHash','role','nome','tentativasFalhas','bloqueadoAte']);
+  ensureSheet(ss, SHEET_USERS, ['username','salt','passwordHash','role','nome','tentativasFalhas','bloqueadoAte','email']);
   ensureSheet(ss, SHEET_ACCOUNTS, ['id','name','kind','balance','asOfDate','order','updatedAt']);
   ensureSheet(ss, SHEET_SOURCES, ['id','sourceName','filename','sheetName','mappingJSON','headerSignature','rowCount','uploadedAt','periodStart','periodEnd','closingBalance']);
   ensureSheet(ss, SHEET_HISTORY, ['id','bank','filename','status','rowCount','errorMessage','at','periodStart','periodEnd','sourceId']);
   ensureSheet(ss, SHEET_APPLICATIONS, ['id','banco','fundo','contaCod','competencia','saldoInicial','aplicacoes','rendimentos','imposto','resgate','saldoFinal','rendimentosPct','cotizacaoResgate','garantia','vinculo','indexador','updatedAt','liquidezDias','classificacaoVinculo','periodicAccepted']);
+  ensureSheet(ss, SHEET_RESET_TOKENS, ['id','username','codeHash','expiresAt','usedAt','attempts','requestedAt']);
   getRootFolder();
   SpreadsheetApp.getUi().alert('Planilha configurada/atualizada com sucesso.');
 }
@@ -658,10 +881,15 @@ function promptCreateUser(){
   if(n.getSelectedButton() !== ui.Button.OK) return;
   const nome = n.getResponseText().trim() || username;
 
+  const e = ui.prompt('E-mail para recuperação', 'E-mail cadastrado para redefinição de senha:', ui.ButtonSet.OK_CANCEL);
+  if(e.getSelectedButton() !== ui.Button.OK) return;
+  const email = e.getResponseText().trim();
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ ui.alert('E-mail inválido.'); return; }
+
   const p = ui.prompt('Senha inicial', 'Digite a senha para "'+username+'":', ui.ButtonSet.OK_CANCEL);
   if(p.getSelectedButton() !== ui.Button.OK || !p.getResponseText()) return;
 
-  setUserPassword(username, role, nome, p.getResponseText());
+  setUserPassword(username, role, nome, p.getResponseText(), email);
   ui.alert('Usuário "'+username+'" criado/atualizado com sucesso.');
 }
 
@@ -686,16 +914,39 @@ function promptSetPassword(){
   ui.alert('Senha de "'+username+'" atualizada.');
 }
 
-function setUserPassword(username, role, nome, plainPassword){
+
+function promptSetUserEmail(){
+  const ui = SpreadsheetApp.getUi();
+  const u = ui.prompt('E-mail de recuperação', 'Nome de usuário existente:', ui.ButtonSet.OK_CANCEL);
+  if(u.getSelectedButton() !== ui.Button.OK || !u.getResponseText().trim()) return;
+  const username = u.getResponseText().trim();
   const sheet = getSheet(SHEET_USERS);
   const data = sheet.getDataRange().getValues();
   let rowIndex = -1;
   for(let i=1;i<data.length;i++){
     if(String(data[i][0]).trim().toLowerCase() === username.toLowerCase()){ rowIndex = i+1; break; }
   }
+  if(rowIndex < 0){ ui.alert('Usuário "'+username+'" não encontrado.'); return; }
+  const e = ui.prompt('E-mail de recuperação', 'Informe o e-mail que receberá os códigos:', ui.ButtonSet.OK_CANCEL);
+  if(e.getSelectedButton() !== ui.Button.OK) return;
+  const email = e.getResponseText().trim();
+  if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ ui.alert('E-mail inválido.'); return; }
+  sheet.getRange(rowIndex,8).setValue(email);
+  ui.alert('E-mail de recuperação atualizado para "'+username+'".');
+}
+
+function setUserPassword(username, role, nome, plainPassword, email){
+  const sheet = getSheet(SHEET_USERS);
+  const data = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0]).trim().toLowerCase() === username.toLowerCase()){ rowIndex = i+1; break; }
+  }
+  const existingEmail = rowIndex > 0 ? String(sheet.getRange(rowIndex,8).getValue()||'') : '';
+  const finalEmail = email === undefined || email === null ? existingEmail : String(email||'').trim();
   const salt = Utilities.getUuid();
   const hash = makePasswordHash(salt, plainPassword);
-  const values = [username, salt, hash, role, nome, 0, ''];
+  const values = [username, salt, hash, role, nome, 0, '', finalEmail];
   if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
   else sheet.appendRow(values);
 }
