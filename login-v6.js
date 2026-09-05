@@ -1,5 +1,5 @@
-/* Plansul — V10 Login profissional e resiliente.
- * Mantido neste nome para compatibilidade com URLs antigas; o HTML V10 força cache novo. */
+/* Plansul — V11 Login profissional e visual idêntico ao modelo aprovado.
+ * Mantido neste nome para compatibilidade; o HTML V11 força cache novo. */
 (function(){
   'use strict';
   const SESSION_KEY='plansul_fluxo_caixa_session';
@@ -7,7 +7,7 @@
   let submitting=false;
   let warmPromise=null;
   window.PlansulLoginEndpoint=window.PlansulLoginEndpoint||ENDPOINT;
-  window.__PLANSUL_V10_LOGIN__=true;
+  window.__PLANSUL_V11_LOGIN__=true;
 
   function el(id){ return document.getElementById(id); }
   function userIcon(){
@@ -22,18 +22,25 @@
   function buttonIdleHtml(){ return 'Entrar'+arrowIcon(); }
 
   function ensureCss(){
-    if(document.querySelector('link[data-login-v10]')) return;
+    if(document.querySelector('link[data-login-v11]')) return;
     const link=document.createElement('link');
     link.rel='stylesheet';
-    link.href='login-v8.css?v=10';
-    link.dataset.loginV10='1';
+    link.href='login-v8.css?v=11';
+    link.dataset.loginV11='1';
     document.head.appendChild(link);
+    if(!document.querySelector('link[data-login-effects-v11]')){
+      const fx=document.createElement('link');
+      fx.rel='stylesheet';
+      fx.href='login-v10-effects.css?v=11';
+      fx.dataset.loginEffectsV11='1';
+      document.head.appendChild(fx);
+    }
   }
 
   function transformMarkup(){
     const overlay=el('loginOverlay');
-    if(!overlay||overlay.dataset.v10Markup==='1') return;
-    overlay.dataset.v10Markup='1';
+    if(!overlay||overlay.dataset.v11Markup==='1') return;
+    overlay.dataset.v11Markup='1';
     overlay.className='';
     overlay.setAttribute('aria-label','Acesso à Tesouraria');
     overlay.innerHTML=`
@@ -129,19 +136,19 @@
     return sess;
   }
 
-  function forceBootstrapV10(){
+  function forceBootstrapV11(){
     return new Promise((resolve,reject)=>{
       if(typeof window.PlansulLoadDashboard==='function') return resolve();
-      const existing=document.querySelector('script[data-v10-bootstrap]');
+      const existing=document.querySelector('script[data-v11-bootstrap]');
       if(existing){
         existing.addEventListener('load',resolve,{once:true});
         existing.addEventListener('error',()=>reject(new Error('bootstrap')),{once:true});
         return;
       }
       const script=document.createElement('script');
-      script.src='app.js?v=10';
+      script.src='app.js?v=11';
       script.async=false;
-      script.dataset.v10Bootstrap='1';
+      script.dataset.v11Bootstrap='1';
       script.onload=resolve;
       script.onerror=()=>reject(new Error('bootstrap'));
       document.head.appendChild(script);
@@ -149,7 +156,7 @@
   }
 
   async function waitForLoader(){
-    if(typeof window.PlansulLoadDashboard!=='function') await forceBootstrapV10();
+    if(typeof window.PlansulLoadDashboard!=='function') await forceBootstrapV11();
     const started=Date.now();
     while(typeof window.PlansulLoadDashboard!=='function'&&Date.now()-started<4000){
       await new Promise(r=>setTimeout(r,30));
@@ -238,8 +245,8 @@
       user.setAttribute('spellcheck','false');
     }
     if(pass) pass.placeholder='Senha';
-    if(form&&!form.dataset.v10Bound){
-      form.dataset.v10Bound='1';
+    if(form&&!form.dataset.v11Bound){
+      form.dataset.v11Bound='1';
       form.addEventListener('submit',submit,true);
     }
     scheduleWarmup();
