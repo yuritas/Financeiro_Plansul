@@ -1,96 +1,24 @@
-/* Plansul — V7 Login corporativo */
-#loginOverlay{
-  position:fixed!important; inset:0!important; z-index:3000!important;
-  display:flex!important; align-items:center!important; justify-content:center!important;
-  padding:32px!important; overflow:auto!important;
-  background:#eef3f5!important; backdrop-filter:none!important;
-  font-family:'IBM Plex Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif!important;
-}
+/* Plansul — V8 Login suave. Mantido neste nome para compatibilidade com páginas em cache. */
+:root{--login-navy:#00283c;--login-navy-2:#00394d;--login-teal:#007f8c;--login-teal-soft:#65d6d2;--login-ink:#16313d;--login-muted:#71828b;--login-line:#dce6e9;--login-field:#f7fafb}
+#loginOverlay{position:fixed!important;inset:0!important;z-index:10000!important;display:flex!important;flex-direction:column!important;overflow:auto!important;background:radial-gradient(circle at 18% 12%,rgba(83,211,210,.10),transparent 28%),radial-gradient(circle at 82% 30%,rgba(0,123,142,.16),transparent 30%),linear-gradient(155deg,rgb(0,40,60) 0%,rgb(0,46,64) 48%,rgb(0,58,72) 100%)!important;color:#fff!important;font-family:'IBM Plex Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif!important;padding:0!important;align-items:stretch!important;justify-content:flex-start!important;backdrop-filter:none!important}
 #loginOverlay[hidden]{display:none!important}
-#loginOverlay::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,rgba(7,88,109,.035),transparent 45%,rgba(23,153,145,.045))}
-#loginOverlay .login-card{
-  position:relative!important; display:grid!important;
-  grid-template-columns:minmax(330px,.92fr) minmax(390px,1.08fr)!important;
-  grid-template-rows:1fr auto!important;
-  width:min(940px,calc(100vw - 64px))!important; max-width:940px!important; min-height:560px!important;
-  margin:0!important; padding:0!important; overflow:hidden!important;
-  border:1px solid #dce5e8!important; border-radius:22px!important;
-  background:#fff!important; box-shadow:0 28px 70px rgba(16,45,55,.14)!important;
-}
-#loginOverlay .modal-head{
-  grid-column:1!important; grid-row:1 / 3!important;
-  display:flex!important; flex-direction:column!important; align-items:flex-start!important; justify-content:center!important;
-  min-width:0!important; padding:56px 48px!important; text-align:left!important;
-  border:0!important; background:linear-gradient(155deg,#073d51 0%,#075d6f 52%,#087f7d 100%)!important;
-  color:#fff!important;
-}
-#loginOverlay .modal-head::before{content:"TESOURARIA";display:inline-flex;margin-bottom:28px;padding:6px 10px;border:1px solid rgba(255,255,255,.24);border-radius:7px;font-size:10px;font-weight:700;letter-spacing:.16em;color:rgba(255,255,255,.82)}
-#loginOverlay .login-logo{
-  display:block!important; width:min(260px,100%)!important; height:auto!important; object-fit:contain!important;
-  margin:0 0 34px!important; padding:14px 18px!important; border-radius:12px!important;
-  background:#fff!important; box-shadow:none!important;
-}
-#loginOverlay .modal-head h2{margin:0!important;max-width:330px!important;font-size:32px!important;line-height:1.12!important;font-weight:700!important;letter-spacing:-.035em!important;color:#fff!important}
-#loginOverlay .modal-head p{margin:14px 0 0!important;max-width:320px!important;font-size:14px!important;line-height:1.6!important;color:rgba(255,255,255,.72)!important}
-#loginOverlay .modal-body{
-  grid-column:2!important; grid-row:1!important; display:flex!important; flex-direction:column!important;
-  justify-content:center!important; gap:20px!important; min-width:0!important;
-  padding:72px 62px 28px!important; background:#fff!important;
-}
-#loginOverlay .modal-body::before{content:"Acessar o painel";display:block;margin-bottom:10px;font-size:27px;line-height:1.2;font-weight:700;letter-spacing:-.03em;color:#16323d}
-#loginOverlay .field{display:flex!important;flex-direction:column!important;gap:8px!important;margin:0!important}
-#loginOverlay .field label{margin:0!important;font-size:12px!important;line-height:1.2!important;font-weight:600!important;letter-spacing:0!important;text-transform:none!important;color:#4d626a!important}
-#loginOverlay .field input[type="text"],#loginOverlay .field input[type="password"]{
-  width:100%!important;height:52px!important;min-height:52px!important;box-sizing:border-box!important;
-  padding:0 15px!important;border:1px solid #cfdadd!important;border-radius:11px!important;outline:0!important;
-  background:#fbfcfc!important;box-shadow:0 1px 2px rgba(16,45,55,.025)!important;color:#17313b!important;caret-color:#087f7d!important;
-  font:500 15px/1.25 'IBM Plex Sans',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif!important;
-  transition:border-color .15s ease,box-shadow .15s ease,background .15s ease!important;
-}
-#loginOverlay .field input::placeholder{color:#9aabb1!important;opacity:1!important}
-#loginOverlay .field input:focus{border-color:#188f8c!important;background:#fff!important;box-shadow:0 0 0 3px rgba(24,143,140,.11)!important}
-#loginOverlay .login-error{margin:0!important;padding:10px 12px!important;border:1px solid #f0c8c8!important;border-radius:9px!important;background:#fff4f4!important;color:#a43d3d!important;font-size:12px!important;line-height:1.45!important}
-#loginOverlay .login-error.login-error-info{border-color:#cfe3e5!important;background:#f2f8f8!important;color:#47656d!important}
-#loginOverlay .modal-foot{
-  grid-column:2!important;grid-row:2!important;display:block!important;padding:0 62px 62px!important;border:0!important;background:#fff!important;
-}
-#loginOverlay .modal-foot::after{content:"Ambiente interno Plansul • acesso restrito";display:block;margin-top:22px;text-align:center;font-size:10.5px;color:#94a4aa}
-#loginOverlay #loginSubmit{
-  width:100%!important;min-height:52px!important;padding:0 22px!important;border:0!important;border-radius:11px!important;
-  background:#087d7b!important;color:#fff!important;box-shadow:none!important;font-size:14px!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important;cursor:pointer!important;
-  transition:background .15s ease,transform .15s ease,opacity .15s ease!important;
-}
-#loginOverlay #loginSubmit:hover{background:#076d6c!important;transform:translateY(-1px)!important}
-#loginOverlay #loginSubmit:active{transform:none!important}
-#loginOverlay #loginSubmit:disabled{opacity:.62!important;cursor:wait!important;transform:none!important}
-
-@media(max-width:760px){
-  #loginOverlay{align-items:stretch!important;justify-content:flex-start!important;padding:0!important;background:#fff!important;overflow:auto!important}
-  #loginOverlay::before{display:none!important}
-  #loginOverlay .login-card{display:flex!important;flex-direction:column!important;width:100%!important;max-width:none!important;min-height:100dvh!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}
-  #loginOverlay .modal-head{display:flex!important;flex:0 0 auto!important;min-height:225px!important;padding:38px 28px 34px!important;justify-content:flex-end!important;background:linear-gradient(150deg,#073d51 0%,#076879 55%,#0a8880 100%)!important}
-  #loginOverlay .modal-head::before{margin-bottom:18px!important}
-  #loginOverlay .login-logo{width:min(220px,72vw)!important;margin:0 0 22px!important;padding:10px 14px!important;border-radius:9px!important}
-  #loginOverlay .modal-head h2{font-size:26px!important}
-  #loginOverlay .modal-head p{margin-top:9px!important;font-size:12.5px!important;line-height:1.45!important}
-  #loginOverlay .modal-body{display:flex!important;flex:1 0 auto!important;justify-content:flex-start!important;padding:34px 24px 18px!important;gap:18px!important;background:#fff!important}
-  #loginOverlay .modal-body::before{margin-bottom:7px!important;font-size:23px!important}
-  #loginOverlay .field input[type="text"],#loginOverlay .field input[type="password"]{height:54px!important;min-height:54px!important;font-size:16px!important}
-  #loginOverlay .modal-foot{padding:4px 24px 32px!important;background:#fff!important}
-  #loginOverlay #loginSubmit{min-height:54px!important;font-size:15px!important}
-  html[data-mobile-theme="dark"] #loginOverlay,html[data-mobile-theme="dark"] #loginOverlay .login-card{background:#0d171c!important}
-  html[data-mobile-theme="dark"] #loginOverlay .modal-body,html[data-mobile-theme="dark"] #loginOverlay .modal-foot{background:#0d171c!important}
-  html[data-mobile-theme="dark"] #loginOverlay .modal-body::before{color:#f3f7f8!important}
-  html[data-mobile-theme="dark"] #loginOverlay .field label{color:#aab9be!important}
-  html[data-mobile-theme="dark"] #loginOverlay .field input[type="text"],html[data-mobile-theme="dark"] #loginOverlay .field input[type="password"]{border-color:#2a3b42!important;background:#142229!important;color:#eef4f5!important}
-  html[data-mobile-theme="dark"] #loginOverlay .field input::placeholder{color:#70848c!important}
-  html[data-mobile-theme="dark"] #loginOverlay .field input:focus{border-color:#2ba6a2!important;background:#16262d!important;box-shadow:0 0 0 3px rgba(43,166,162,.12)!important}
-  html[data-mobile-theme="dark"] #loginOverlay .login-error{border-color:#693d3d!important;background:#2a191b!important;color:#ffc8c8!important}
-  html[data-mobile-theme="dark"] #loginOverlay .login-error.login-error-info{border-color:#2c4b51!important;background:#13262b!important;color:#aac5ca!important}
-  html[data-mobile-theme="dark"] #loginOverlay .modal-foot::after{color:#6f838a!important}
-}
-@media(max-width:390px){
-  #loginOverlay .modal-head{min-height:205px!important;padding:30px 22px 28px!important}
-  #loginOverlay .modal-body{padding-left:20px!important;padding-right:20px!important}
-  #loginOverlay .modal-foot{padding-left:20px!important;padding-right:20px!important}
-}
+#loginOverlay>.login-card{visibility:hidden!important}
+.login-v8-visual{flex:0 0 clamp(245px,42vh,390px);display:flex;align-items:center;justify-content:center;position:relative;padding:34px 24px 58px;text-align:center}
+.login-v8-brand{display:flex;flex-direction:column;align-items:center;gap:18px;transform:translateY(-4px)}
+.login-v8-logo{display:block;width:min(250px,62vw);height:auto;object-fit:contain;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;filter:drop-shadow(0 0 4px rgba(127,236,231,.20)) drop-shadow(0 0 13px rgba(89,221,218,.11))}
+.login-v8-kicker{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 13px;border:1px solid rgba(156,230,229,.26);border-radius:999px;background:rgba(255,255,255,.035);color:rgba(225,249,248,.86);font-size:11px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;backdrop-filter:blur(4px)}
+.login-v8-kicker::before{content:'';width:5px;height:5px;border-radius:50%;background:#78dcd7;margin-right:9px;box-shadow:0 0 8px rgba(120,220,215,.42)}
+.login-v8-sheet{flex:1 0 auto;position:relative;z-index:2;width:100%;min-height:360px;margin-top:-30px;border-radius:30px 30px 0 0;background:#fff;color:var(--login-ink);box-shadow:0 -12px 36px rgba(0,18,29,.12);display:flex;justify-content:center;padding:42px 24px max(30px,env(safe-area-inset-bottom));box-sizing:border-box}
+.login-v8-form{width:min(100%,410px);display:flex;flex-direction:column;gap:17px}
+.login-v8-field{display:flex;flex-direction:column;gap:7px}.login-v8-field label{color:#405760;font-size:12px;font-weight:650;letter-spacing:.015em}
+.login-v8-field input{width:100%;height:53px;box-sizing:border-box;padding:0 15px;border:1px solid var(--login-line);border-radius:13px;outline:none;background:var(--login-field);color:#17323d;font:500 15px/1 'IBM Plex Sans',system-ui,sans-serif;box-shadow:0 1px 0 rgba(0,40,60,.02);transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}
+.login-v8-field input::placeholder{color:#9aa8ae;font-weight:400}.login-v8-field input:focus{border-color:#55aeb4;background:#fff;box-shadow:0 0 0 3px rgba(23,137,147,.09)}
+.login-v8-actions{display:flex;justify-content:center;padding-top:5px}
+#loginSubmit.login-v8-submit{min-width:190px;height:48px;border:0;border-radius:14px;padding:0 26px;background:linear-gradient(135deg,#006f7c 0%,#005568 100%);color:#fff;font:700 14px/1 'IBM Plex Sans',system-ui,sans-serif;letter-spacing:.01em;cursor:pointer;box-shadow:0 8px 18px rgba(0,72,86,.16);transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease}
+#loginSubmit.login-v8-submit:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(0,72,86,.20)}#loginSubmit.login-v8-submit:active{transform:translateY(0)}#loginSubmit.login-v8-submit:disabled{cursor:default;opacity:.72;transform:none}
+.login-v8-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:-2px;animation:loginV8Spin .7s linear infinite}@keyframes loginV8Spin{to{transform:rotate(360deg)}}
+#loginError.login-v8-message{margin:0;min-height:18px;padding:9px 11px;border-radius:10px;background:#fff4f3;color:#a3423f;border:1px solid #f0d6d4;font-size:12px;line-height:1.35;text-align:center}#loginError.login-v8-message.login-v8-info{background:#f1f8f8;color:#42656c;border-color:#d8e8e9}#loginError.login-v8-message[hidden]{display:none!important}
+.login-v8-note{margin:5px 0 0;text-align:center;color:#9aa7ad;font-size:10.5px;letter-spacing:.02em}
+@media(min-width:900px){#loginOverlay{flex-direction:row!important;align-items:stretch!important;justify-content:center!important;overflow:hidden!important}.login-v8-visual{flex:1 1 52%;min-height:100vh;padding:48px}.login-v8-brand{transform:none}.login-v8-logo{width:min(310px,30vw)}.login-v8-sheet{flex:0 0 min(48%,620px);min-height:100vh;margin:0;border-radius:34px 0 0 34px;align-items:center;padding:70px clamp(42px,5vw,78px);box-shadow:-18px 0 46px rgba(0,18,29,.13)}.login-v8-form{width:min(100%,390px)}}
+@media(max-width:520px){.login-v8-visual{flex-basis:38vh;min-height:235px;padding:26px 20px 48px}.login-v8-logo{width:min(220px,66vw)}.login-v8-sheet{margin-top:-26px;border-radius:27px 27px 0 0;padding:35px 20px 26px}.login-v8-form{gap:15px}.login-v8-field input{height:51px}#loginSubmit.login-v8-submit{min-width:178px}}
+@media(prefers-reduced-motion:reduce){#loginSubmit.login-v8-submit,.login-v8-field input{transition:none}.login-v8-spinner{animation-duration:1.2s}}
