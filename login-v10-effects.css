@@ -1,19 +1,19 @@
-/* Plansul — V10 microinterações do login. Discretas e funcionais. */
+/* Plansul — V11 microinterações discretas do login */
 @keyframes plansulLoginBrandIn{
-  from{opacity:0;transform:translateY(-10px)}
-  to{opacity:1;transform:translateY(-8px)}
+  from{opacity:0;transform:translateX(-50%) translateY(-8px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}
 }
 @keyframes plansulLoginSheetIn{
-  from{opacity:.25;transform:translateY(22px)}
+  from{opacity:.35;transform:translateY(16px)}
   to{opacity:1;transform:translateY(0)}
 }
 @keyframes plansulLoginButtonGlow{
-  0%,100%{box-shadow:0 12px 24px rgba(0,76,100,.14)}
-  50%{box-shadow:0 15px 30px rgba(0,118,139,.20)}
+  0%,100%{box-shadow:0 10px 24px rgba(0,63,85,.13)}
+  50%{box-shadow:0 13px 28px rgba(0,95,116,.19)}
 }
 
-.login-v8-brand{animation:plansulLoginBrandIn .52s cubic-bezier(.22,.8,.26,1) both}
-.login-v8-sheet{animation:plansulLoginSheetIn .48s cubic-bezier(.22,.8,.26,1) both}
+.login-v8-brand{animation:plansulLoginBrandIn .46s cubic-bezier(.22,.8,.26,1) both}
+.login-v8-sheet{animation:plansulLoginSheetIn .42s cubic-bezier(.22,.8,.26,1) both}
 .login-v8-field{position:relative}
 .login-v8-field::after{
   content:"";
@@ -23,33 +23,30 @@
   bottom:-1.5px;
   height:1.5px;
   border-radius:999px;
-  background:linear-gradient(90deg,#006f8a,#0a9dac);
-  transition:right .22s ease;
+  background:linear-gradient(90deg,#537b9c,#0a8fa0);
+  transition:right .20s ease;
 }
 .login-v8-field:focus-within::after{right:0}
-.login-v8-field-icon{transition:color .18s ease,transform .18s ease}
-.login-v8-field:focus-within .login-v8-field-icon{color:#007b91;transform:translateY(-1px)}
-.login-v8-field input{transition:color .18s ease}
+.login-v8-field-icon{transition:color .16s ease,transform .16s ease}
+.login-v8-field:focus-within .login-v8-field-icon{color:#0b718a;transform:translateY(-1px)}
 #loginSubmit.login-v8-submit{position:relative;overflow:hidden}
 #loginSubmit.login-v8-submit::before{
   content:"";
   position:absolute;
   inset:0;
-  background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.10) 48%,transparent 70%);
+  background:linear-gradient(110deg,transparent 28%,rgba(255,255,255,.08) 50%,transparent 72%);
   transform:translateX(-120%);
-  transition:transform .55s ease;
+  transition:transform .5s ease;
   pointer-events:none;
 }
 #loginSubmit.login-v8-submit:hover::before{transform:translateX(120%)}
-#loginOverlay.login-v10-authenticating #loginSubmit.login-v8-submit{animation:plansulLoginButtonGlow 1.4s ease-in-out infinite}
-#loginOverlay.login-v10-authenticating .login-v8-field{opacity:.78}
+#loginOverlay.login-v10-authenticating #loginSubmit.login-v8-submit{animation:plansulLoginButtonGlow 1.35s ease-in-out infinite}
+#loginOverlay.login-v10-authenticating .login-v8-field{opacity:.80}
 #loginOverlay.login-v10-authenticating .login-v8-logo,
-#loginOverlay.login-v10-authenticating .login-v8-kicker{opacity:.92;transition:opacity .18s ease}
+#loginOverlay.login-v10-authenticating .login-v8-kicker{opacity:.94;transition:opacity .16s ease}
 
-@media(min-width:900px){
-  .login-v8-brand{animation-name:plansulLoginBrandIn}
-}
 @media(prefers-reduced-motion:reduce){
   .login-v8-brand,.login-v8-sheet,#loginOverlay.login-v10-authenticating #loginSubmit.login-v8-submit{animation:none!important}
+  .login-v8-brand{transform:translateX(-50%)!important}
   .login-v8-field::after,#loginSubmit.login-v8-submit::before,.login-v8-field-icon{transition:none!important}
 }
