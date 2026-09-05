@@ -1140,10 +1140,12 @@ async function loadData(opts){
     renderAll();
     if(document.getElementById('historyView') && !document.getElementById('historyView').hidden) renderHistory();
     if(document.getElementById('applicationsView') && !document.getElementById('applicationsView').hidden) renderApplications();
+    return true;
   }catch(err){
     console.error('loadData', err);
     guardSession(err);
     if(!silent) setSync('stale', 'Falha ao atualizar — tentando de novo em breve');
+    return false;
   }
 }
 
@@ -1268,11 +1270,16 @@ function handleSessionExpired(){
   showLoginScreen('Sua sessão expirou. Entre novamente.', true);
 }
 async function enterApp(){
-  hideLoginScreen();
   applyEditGating();
   wireStaticEvents();
-  await loadData();
+  const loaded = await loadData();
+  if(!loaded || !session){
+    if(session) showLoginScreen('Não foi possível carregar os dados do painel. Verifique sua conexão e tente novamente.', true);
+    return false;
+  }
+  hideLoginScreen();
   startPolling();
+  return true;
 }
 async function doLogin(username, password){
   const btn = document.getElementById('loginSubmit');
@@ -3339,10 +3346,11 @@ function boot(){
   const stored = loadStoredSession();
   if(stored){
     session = stored;
-    enterApp();
-  }else{
-    showLoginScreen();
+    showLoginScreen('Validando sua sessão…', false);
+    return enterApp();
   }
+  showLoginScreen();
+  return Promise.resolve(false);
 }
 window.PlansulBoot = boot;
 if(!window.__PLANSUL_DEFER_BOOT__){
