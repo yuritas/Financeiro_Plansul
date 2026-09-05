@@ -1,12 +1,11 @@
-/* Plansul — V11 Login visual fiel ao layout aprovado */
+/* Plansul — V12 Login final aprovado */
 :root{
-  --login-bg-deep:#00283c;
-  --login-bg-darker:#001d31;
-  --login-teal:#0a8da0;
-  --login-teal-dot:#2bd4d0;
+  --login-sheet:#fbfcfe;
   --login-field:#4f7598;
-  --login-line:#a9bccb;
-  --login-sheet:#ffffff;
+  --login-line:#9fb3c3;
+  --login-button-left:#0a7b95;
+  --login-button-mid:#075773;
+  --login-button-right:#00314f;
 }
 
 #loginOverlay{
@@ -19,128 +18,47 @@
   height:100dvh;
   min-height:100dvh;
   overflow:hidden;
+  background:#00233d;
   color:#fff;
   font-family:"IBM Plex Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  background:
-    radial-gradient(82% 38% at -4% -3%, rgba(28,144,181,.92) 0%, rgba(4,99,133,.58) 35%, transparent 72%),
-    radial-gradient(72% 42% at 4% 42%, rgba(6,105,136,.28) 0%, transparent 70%),
-    linear-gradient(145deg,#075f7d 0%,#014a67 25%,rgb(0,40,60) 54%,#00233a 78%,#001d31 100%);
 }
 #loginOverlay[hidden]{display:none!important}
+#loginOverlay::before,#loginOverlay::after{display:none!important}
 
-/* Arcos extremamente discretos presentes no modelo de referência. */
-#loginOverlay::before,
-#loginOverlay::after{
-  content:"";
-  position:absolute;
-  pointer-events:none;
-  z-index:0;
-  border:1px solid rgba(33,159,185,.22);
-  border-radius:50%;
-}
-#loginOverlay::before{
-  width:74vw;
-  height:54vw;
-  right:-38vw;
-  top:-24vw;
-  transform:rotate(18deg);
-}
-#loginOverlay::after{
-  width:86vw;
-  height:70vw;
-  left:-58vw;
-  top:28vh;
-  transform:rotate(28deg);
-}
-
+/* O topo usa o recorte exato da imagem final aprovada pelo usuário. */
 .login-v8-visual{
   position:relative;
   z-index:1;
-  flex:0 0 46.8dvh;
+  flex:0 0 auto;
+  width:100%;
+  aspect-ratio:864/713;
   min-height:0;
-  width:100%;
-  box-sizing:border-box;
+  background:#00233d url('./assets/login-header-final.webp?v=12') center top/100% 100% no-repeat;
 }
-.login-v8-brand{
-  position:absolute;
-  top:16.6dvh;
-  left:50%;
-  width:100%;
-  transform:translateX(-50%);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:28px;
-  text-align:center;
-}
-.login-v8-logo{
-  display:block;
-  width:min(77vw,665px);
-  height:auto;
-  object-fit:contain;
-  margin:0;
-  padding:0;
-  background:transparent!important;
-  border:0!important;
-  border-radius:0!important;
-  box-shadow:none!important;
-  filter:none!important;
-}
-.login-v8-kicker{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:min(48vw,414px);
-  min-width:0;
-  height:36px;
-  padding:0 22px;
-  box-sizing:border-box;
-  border:1px solid rgba(14,141,160,.72);
-  border-radius:999px;
-  background:rgba(0,42,61,.34);
-  color:#f6fbfd;
-  font-size:clamp(10px,2.75vw,13px);
-  font-weight:700;
-  letter-spacing:.31em;
-  line-height:1;
-  text-transform:uppercase;
-  white-space:nowrap;
-  box-shadow:none;
-  backdrop-filter:none;
-}
-.login-v8-kicker::before{
-  content:"";
-  display:block;
-  width:9px;
-  height:9px;
-  flex:0 0 9px;
-  margin-right:20px;
-  border-radius:50%;
-  background:var(--login-teal-dot);
-  box-shadow:0 0 7px rgba(43,212,208,.20);
-}
+.login-v8-brand{display:none!important}
 
 .login-v8-sheet{
   position:relative;
   z-index:3;
   flex:1 1 auto;
   width:100%;
-  min-height:53.2dvh;
+  min-height:0;
   margin:0;
   box-sizing:border-box;
   display:flex;
   justify-content:center;
   align-items:flex-start;
-  padding:52px 0 max(26px,env(safe-area-inset-bottom));
-  border-radius:34px 34px 0 0;
+  padding:10.4vw 0 max(28px,env(safe-area-inset-bottom));
+  border-radius:5.8vw 5.8vw 0 0;
   background:
-    radial-gradient(60% 28% at 76% 63%,rgba(214,237,246,.24),transparent 70%),
-    linear-gradient(180deg,#fff 0%,#fff 76%,#fbfdff 100%);
-  color:#36576d;
-  box-shadow:0 -2px 12px rgba(0,23,38,.04);
+    radial-gradient(72% 28% at 72% 58%,rgba(226,238,246,.22),transparent 72%),
+    linear-gradient(180deg,#ffffff 0%,#ffffff 68%,#f9fbfe 100%);
+  color:#4f7598;
+  box-shadow:0 -2px 10px rgba(0,18,31,.025);
 }
 .login-v8-form{
-  width:min(77.5vw,430px);
+  width:77.6vw;
+  max-width:670px;
   margin:0 auto;
   display:flex;
   flex-direction:column;
@@ -148,14 +66,16 @@
 .login-v8-field{
   position:relative;
   display:grid;
-  grid-template-columns:42px minmax(0,1fr);
+  grid-template-columns:11.8vw minmax(0,1fr);
   align-items:center;
   width:100%;
-  height:52px;
+  height:8.15vw;
+  min-height:58px;
+  max-height:70px;
   box-sizing:border-box;
   border-bottom:1.5px solid var(--login-line);
 }
-.login-v8-field + .login-v8-field{margin-top:21px}
+.login-v8-field + .login-v8-field{margin-top:8.0vw}
 .login-v8-field label{
   position:absolute!important;
   width:1px!important;
@@ -168,46 +88,52 @@
   border:0!important;
 }
 .login-v8-field-icon{
-  width:31px;
-  height:31px;
+  width:7.1vw;
+  height:7.1vw;
+  max-width:61px;
+  max-height:61px;
   display:grid;
   place-items:center;
-  color:#4b7398;
+  color:#4f7598;
 }
 .login-v8-field-icon svg{
-  width:29px;
-  height:29px;
+  width:6.1vw;
+  height:6.1vw;
+  max-width:53px;
+  max-height:53px;
+  min-width:31px;
+  min-height:31px;
   display:block;
   fill:none;
   stroke:currentColor;
-  stroke-width:1.7;
+  stroke-width:1.65;
   stroke-linecap:round;
   stroke-linejoin:round;
 }
 .login-v8-field input{
   width:100%;
-  height:50px;
+  height:100%;
   box-sizing:border-box;
-  padding:0 2px 0 9px;
+  padding:0 2px 0 1.9vw;
   border:0;
   outline:none;
   background:transparent;
-  color:#4b7294;
-  font:400 clamp(16px,4.1vw,19px)/1 "IBM Plex Sans",system-ui,sans-serif;
-  caret-color:#0a7891;
+  color:#4f7598;
+  font:400 clamp(18px,4.15vw,36px)/1 "IBM Plex Sans",system-ui,sans-serif;
+  caret-color:#075f7e;
   box-shadow:none;
 }
 .login-v8-field input::placeholder{
-  color:#55799b;
+  color:#4f7598;
   opacity:1;
   font-weight:400;
 }
-.login-v8-field:focus-within{border-bottom-color:#6d97b0}
+.login-v8-field:focus-within{border-bottom-color:#7898ad}
 
 #loginError.login-v8-message{
-  margin:14px 0 -2px;
-  padding:9px 11px;
-  border-radius:10px;
+  margin:16px 0 -4px;
+  padding:10px 12px;
+  border-radius:12px;
   background:#fff5f4;
   color:#a3423f;
   border:1px solid #efd8d6;
@@ -216,7 +142,7 @@
   text-align:center;
 }
 #loginError.login-v8-message.login-v8-info{
-  background:#f3f9fa;
+  background:#f3f8fa;
   color:#42656c;
   border-color:#dce9ea;
 }
@@ -226,46 +152,51 @@
   display:flex;
   justify-content:center;
   width:100%;
-  padding-top:45px;
+  padding-top:10.6vw;
 }
 #loginSubmit.login-v8-submit{
   width:100%;
-  height:64px;
+  height:14.7vw;
   min-height:64px;
+  max-height:127px;
   margin:0;
-  padding:0 34px;
+  padding:0 7vw;
   border:0;
   border-radius:999px;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:20px;
-  background:linear-gradient(104deg,#0f738b 0%,#075b77 34%,#004a65 58%,#00344f 100%);
+  gap:4.0vw;
+  background:linear-gradient(105deg,var(--login-button-left) 0%,#086983 23%,var(--login-button-mid) 50%,#00445f 73%,var(--login-button-right) 100%);
   color:#fff;
-  font:700 clamp(13px,3.45vw,16px)/1 "IBM Plex Sans",system-ui,sans-serif;
+  font:700 clamp(15px,3.7vw,32px)/1 "IBM Plex Sans",system-ui,sans-serif;
   letter-spacing:.25em;
   text-transform:uppercase;
   cursor:pointer;
-  box-shadow:0 10px 24px rgba(0,63,85,.13);
+  box-shadow:0 12px 28px rgba(0,61,86,.12);
   transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease;
 }
 #loginSubmit.login-v8-submit svg{
-  width:26px;
-  height:26px;
+  width:7vw;
+  height:7vw;
+  max-width:44px;
+  max-height:44px;
+  min-width:26px;
+  min-height:26px;
   stroke:currentColor;
-  stroke-width:1.7;
+  stroke-width:1.65;
   fill:none;
   stroke-linecap:round;
   stroke-linejoin:round;
 }
-#loginSubmit.login-v8-submit:hover{transform:translateY(-1px);box-shadow:0 13px 26px rgba(0,63,85,.16)}
-#loginSubmit.login-v8-submit:active{transform:translateY(0) scale(.995)}
-#loginSubmit.login-v8-submit:disabled{cursor:default;opacity:.72;transform:none}
+#loginSubmit.login-v8-submit:hover{transform:translateY(-1px);box-shadow:0 15px 32px rgba(0,61,86,.15)}
+#loginSubmit.login-v8-submit:active{transform:translateY(0) scale(.996)}
+#loginSubmit.login-v8-submit:disabled{cursor:default;opacity:.76;transform:none}
 
 .login-v8-spinner{
-  width:15px;
-  height:15px;
-  border:2px solid rgba(255,255,255,.34);
+  width:17px;
+  height:17px;
+  border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;
   border-radius:50%;
   display:inline-block;
@@ -274,37 +205,49 @@
 @keyframes loginV8Spin{to{transform:rotate(360deg)}}
 .login-v8-note{display:none!important}
 
-/* O desktop mantém a mesma composição do layout aprovado, apenas limita larguras. */
-@media(min-width:900px){
-  #loginOverlay{overflow:auto}
-  #loginOverlay::before{width:48vw;height:35vw;right:-20vw;top:-17vw}
-  #loginOverlay::after{width:55vw;height:42vw;left:-34vw;top:25vh}
-  .login-v8-visual{flex-basis:47vh;min-height:400px}
-  .login-v8-brand{top:14vh;gap:30px}
-  .login-v8-logo{width:min(580px,58vw)}
-  .login-v8-kicker{width:360px;height:48px;font-size:12px}
-  .login-v8-sheet{min-height:53vh;padding-top:64px;border-radius:42px 42px 0 0}
-  .login-v8-form{width:min(420px,42vw)}
-  .login-v8-field{height:58px;grid-template-columns:46px minmax(0,1fr)}
-  .login-v8-field + .login-v8-field{margin-top:24px}
-  .login-v8-field input{height:56px;font-size:18px}
-  .login-v8-actions{padding-top:48px}
-  #loginSubmit.login-v8-submit{height:64px;min-height:64px;font-size:14px}
-}
-
+/* Em telas mais estreitas, mantém as proporções da arte de 864x1536. */
 @media(max-width:520px){
-  .login-v8-logo{width:77vw}
-  .login-v8-kicker{width:48vw;min-width:200px}
-  .login-v8-sheet{padding-left:0;padding-right:0}
+  .login-v8-sheet{padding-top:10.4vw;border-radius:5.8vw 5.8vw 0 0}
+  .login-v8-form{width:77.6vw}
+  .login-v8-field{height:8.15vw;min-height:54px;grid-template-columns:11.8vw minmax(0,1fr)}
+  .login-v8-field + .login-v8-field{margin-top:8vw}
+  .login-v8-actions{padding-top:10.6vw}
+  #loginSubmit.login-v8-submit{height:14.7vw;min-height:60px}
 }
 
-@media(max-height:700px){
-  .login-v8-visual{flex-basis:44dvh}
-  .login-v8-brand{top:11.5dvh;gap:18px}
-  .login-v8-logo{width:min(68vw,460px)}
-  .login-v8-kicker{height:34px}
-  .login-v8-sheet{min-height:56dvh;padding-top:36px}
-  .login-v8-actions{padding-top:28px}
+/* Desktop: mesma linguagem visual, em um painel central com proporções controladas. */
+@media(min-width:900px){
+  #loginOverlay{
+    align-items:center;
+    justify-content:flex-start;
+    overflow:auto;
+    background:#00233d;
+  }
+  .login-v8-visual{
+    width:min(100%,864px);
+    flex:0 0 auto;
+  }
+  .login-v8-sheet{
+    width:min(100%,864px);
+    flex:1 0 auto;
+    min-height:52vh;
+    padding-top:78px;
+    border-radius:50px 50px 0 0;
+  }
+  .login-v8-form{width:670px}
+  .login-v8-field{height:70px;grid-template-columns:102px minmax(0,1fr)}
+  .login-v8-field + .login-v8-field{margin-top:69px}
+  .login-v8-field-icon{width:61px;height:61px}
+  .login-v8-field-icon svg{width:53px;height:53px}
+  .login-v8-field input{font-size:36px;padding-left:16px}
+  .login-v8-actions{padding-top:92px}
+  #loginSubmit.login-v8-submit{height:127px;font-size:30px;gap:34px}
+}
+
+@media(max-height:700px) and (max-width:899px){
+  .login-v8-sheet{padding-top:7.5vw}
+  .login-v8-field + .login-v8-field{margin-top:5.5vw}
+  .login-v8-actions{padding-top:7vw}
 }
 
 @media(prefers-reduced-motion:reduce){
