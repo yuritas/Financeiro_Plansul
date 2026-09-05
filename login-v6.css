@@ -1,5 +1,5 @@
-/* Plansul — V9 fallback visual. Mantido neste nome para compatibilidade com páginas em cache. */
-@import url('./login-v8.css?v=9');
+/* Plansul — V10 fallback visual. Mantido neste nome para compatibilidade com páginas em cache. */
+@import url('./login-v8.css?v=10');
 
 /* Antes do JavaScript transformar o markup, o formulário legado permanece utilizável e próximo do visual final. */
 #loginOverlay>.login-card{
