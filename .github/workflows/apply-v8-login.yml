@@ -1,0 +1,89 @@
+name: ApplyLoginV8
+on:
+  push:
+    branches: [v8-login-leve-tesouraria]
+    paths: ['.v8/ready']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.event.head_commit.message != 'chore: aplica V8 de login'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v8-login-leve-tesouraria
+          fetch-depth: 0
+      - name: Aplicar markup V8
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          new_login = '''<!-- Tela de login V8 -->
+<div id="loginOverlay" aria-label="Acesso à Tesouraria">
+  <section class="login-v8-visual" aria-hidden="true">
+    <div class="login-v8-brand">
+      <img class="login-v8-logo" src="assets/plansul-wordmark.png" alt="">
+      <span class="login-v8-kicker">Tesouraria</span>
+    </div>
+  </section>
+  <section class="login-v8-sheet">
+    <form class="login-v8-form" id="loginForm" novalidate>
+      <div class="login-v8-field">
+        <label for="loginUser">Usuário</label>
+        <input type="text" id="loginUser" autocomplete="username" inputmode="text" required>
+      </div>
+      <div class="login-v8-field">
+        <label for="loginPass">Senha</label>
+        <input type="password" id="loginPass" autocomplete="current-password" required>
+      </div>
+      <p class="login-v8-message" id="loginError" hidden role="status" aria-live="polite"></p>
+      <div class="login-v8-actions">
+        <button type="submit" class="login-v8-submit" id="loginSubmit">Entrar</button>
+      </div>
+      <p class="login-v8-note">Ambiente interno Plansul</p>
+    </form>
+  </section>
+</div>'''
+
+          for name in ('index.html','diretoria.html'):
+              p=Path(name)
+              text=p.read_text(encoding='utf-8')
+              text=text.replace('<link rel="stylesheet" href="login-v6.css?v=7">','<link rel="stylesheet" href="login-v8.css?v=8">')
+              pattern=r'<!-- Tela de login -->.*?<div class="app" id="app" hidden>'
+              replacement=new_login+'\n\n<div class="app" id="app" hidden>'
+              text,n=re.subn(pattern,replacement,text,count=1,flags=re.S)
+              if n!=1:
+                  raise SystemExit(f'Não foi possível substituir o login em {name}')
+              old='<script src="login-v6.js?v=7"></script>\n<script src="app.js?v=7"></script>'
+              new='<script src="app.js?v=8"></script>\n<script src="login-v8.js?v=8"></script>'
+              if old not in text:
+                  raise SystemExit(f'Referências V7 não encontradas em {name}')
+              text=text.replace(old,new,1)
+              p.write_text(text,encoding='utf-8')
+          PY
+      - name: Validar V8
+        shell: bash
+        run: |
+          node --check app.js
+          node --check login-v8.js
+          grep -q 'login-v8.css?v=8' index.html
+          grep -q 'login-v8.js?v=8' index.html
+          grep -q 'login-v8.css?v=8' diretoria.html
+          grep -q 'login-v8.js?v=8' diretoria.html
+          ! grep -q 'login-v6.js?v=7' index.html
+          ! grep -q 'login-v6.js?v=7' diretoria.html
+          grep -q 'Tesouraria' index.html
+          grep -q 'Tesouraria' diretoria.html
+      - name: Commit V8
+        shell: bash
+        run: |
+          rm -rf .v8
+          rm -f .github/workflows/apply-v8-login.yml
+          git config user.name 'Plansul'
+          git config user.email 'yuritas.pessoal@gmail.com'
+          git add -A
+          git commit -m 'chore: aplica V8 de login'
+          git push origin HEAD:v8-login-leve-tesouraria
