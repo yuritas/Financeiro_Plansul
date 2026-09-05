@@ -1,5 +1,5 @@
 name: ApplyLoginV8
-on:
+"on":
   push:
     branches:
       - v8-login-leve-tesouraria
@@ -18,7 +18,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
-
           new_login = """<!-- Tela de login V8 -->
 <div id="loginOverlay" aria-label="Acesso à Tesouraria">
   <section class="login-v8-visual" aria-hidden="true">
@@ -45,23 +44,20 @@ jobs:
     </form>
   </section>
 </div>"""
-
           for name in ('index.html','diretoria.html'):
               p=Path(name)
               text=p.read_text(encoding='utf-8')
               if 'login-v8.css?v=8' not in text:
                   text=text.replace('<link rel="stylesheet" href="login-v6.css?v=7">','<link rel="stylesheet" href="login-v8.css?v=8">')
               if '<!-- Tela de login V8 -->' not in text:
-                  pattern=r'<!-- Tela de login -->.*?<div class="app" id="app" hidden>'
-                  text,n=re.subn(pattern,new_login+'\n\n<div class="app" id="app" hidden>',text,count=1,flags=re.S)
-                  if n!=1:
-                      raise SystemExit('Falha ao substituir login em '+name)
+                  text,n=re.subn(r'<!-- Tela de login -->.*?<div class="app" id="app" hidden>',new_login+'\n\n<div class="app" id="app" hidden>',text,count=1,flags=re.S)
+                  if n!=1: raise SystemExit('Falha ao substituir login em '+name)
               old='<script src="login-v6.js?v=7"></script>\n<script src="app.js?v=7"></script>'
               if old in text:
                   text=text.replace(old,'<script src="app.js?v=8"></script>\n<script src="login-v8.js?v=8"></script>',1)
               p.write_text(text,encoding='utf-8')
           PY
-      - name: Validar JavaScript e referências
+      - name: Validar
         run: |
           node --check app.js
           node --check login-v8.js
@@ -69,7 +65,7 @@ jobs:
           grep -q 'login-v8.js?v=8' index.html
           grep -q 'login-v8.css?v=8' diretoria.html
           grep -q 'login-v8.js?v=8' diretoria.html
-      - name: Commit se houver alterações
+      - name: Commit
         run: |
           rm -rf .v8
           git config user.name Plansul
