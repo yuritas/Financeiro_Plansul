@@ -1,0 +1,33 @@
+name: V11CacheBust
+on:
+  push:
+    branches: [v11-login-visual-identico]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v11-login-visual-identico
+      - name: Atualizar versões dos assets V11
+        shell: bash
+        run: |
+          for f in index.html diretoria.html; do
+            [ -f "$f" ] || continue
+            sed -i 's/login-v6\.css?v=10/login-v6.css?v=11/g' "$f"
+            sed -i 's/login-v6\.js?v=10/login-v6.js?v=11/g' "$f"
+            sed -i 's/app\.js?v=10/app.js?v=11/g' "$f"
+            sed -i 's/xlsx-v6-loader\.js?v=10/xlsx-v6-loader.js?v=11/g' "$f"
+          done
+      - name: Commit
+        shell: bash
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "Plansul"
+          git config user.email "yuritas.pessoal@gmail.com"
+          git add index.html diretoria.html
+          git commit -m "chore: força carregamento dos assets V11"
+          git push origin HEAD:v11-login-visual-identico
