@@ -1,0 +1,37 @@
+name: V10CacheBust
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.v10-cache-bust'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Atualizar versões dos assets críticos
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('index.html','diretoria.html'):
+              p=Path(name)
+              s=p.read_text(encoding='utf-8')
+              s=s.replace('login-v6.css?v=7','login-v6.css?v=10')
+              s=s.replace('login-v6.js?v=7','login-v6.js?v=10')
+              s=s.replace('app.js?v=7','app.js?v=10')
+              s=s.replace('xlsx-v6-loader.js"></script>','xlsx-v6-loader.js?v=10"></script>')
+              p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit
+        run: |
+          rm -f .v10-cache-bust .github/workflows/v10-cache-bust.yml
+          git config user.name Plansul
+          git config user.email yuritas.pessoal@gmail.com
+          git add -A
+          git commit -m 'fix: força carregamento dos assets V10'
+          git push origin HEAD:main
