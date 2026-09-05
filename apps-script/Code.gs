@@ -25,6 +25,11 @@ const SHEET_HISTORY = 'Historico';
 const SHEET_APPLICATIONS = 'Aplicacoes';
 const APPLICATIONS_STALE_DAYS = 60; // acima disso, o fundo é marcado como "desatualizado"
 
+const SHEET_RESET_TOKENS = 'ResetTokens';
+const RESET_CODE_TTL_MINUTES = 10;
+const RESET_MAX_ATTEMPTS = 5;
+const RESET_THROTTLE_SECONDS = 60;
+
 /* ==== PONTO DE ENTRADA HTTP ==== */
 // O front-end (GitHub Pages) fala com este endpoint via fetch(), sempre com
 // Content-Type "text/plain" — isso evita o preflight de CORS que o Apps
@@ -78,6 +83,15 @@ function doPost(e){
       case 'saveApplications':
         requireSessionRole(body.token, 'financeiro');
         result = doSaveApplications(body);
+        break;
+      case 'requestPasswordReset':
+        result = doRequestPasswordReset(body.identifier);
+        break;
+      case 'verifyResetCode':
+        result = doVerifyResetCode(body.identifier, body.code);
+        break;
+      case 'resetPassword':
+        result = doResetPassword(body.identifier, body.code, body.newPassword);
         break;
       default:
         throw mkError('unknown_action');
@@ -160,7 +174,7 @@ function doLogin(username, password){
   if(!username || !password) throw mkError('invalid_credentials');
   const sheet = getSheet(SHEET_USERS);
   const data = sheet.getDataRange().getValues();
-  // colunas: username | salt | passwordHash | role | nome | tentativasFalhas | bloqueadoAte
+  // colunas: username | salt | passwordHash | role | nome | tentativasFalhas | bloqueadoAte | email
   for(let i=1;i<data.length;i++){
     const row = data[i];
     if(String(row[0]).trim().toLowerCase() !== String(username).trim().toLowerCase()) continue;
@@ -192,6 +206,160 @@ function doLogin(username, password){
     return { token, role, nome, username: row[0] };
   }
   throw mkError('invalid_credentials');
+}
+
+/* ==== "ESQUECI MINHA SENHA" (código por e-mail) ====
+ * Fluxo em 3 chamadas, sem exigir sessão (o usuário ainda não conseguiu
+ * entrar): requestPasswordReset -> verifyResetCode -> resetPassword.
+ * Nunca revela se o usuário/e-mail existe: a resposta de pedido de código é
+ * sempre a mesma mensagem genérica, e o throttle de reenvio é controlado por
+ * identificador bruto (via CacheService), não pelo cadastro encontrado — assim
+ * o comportamento observável não muda entre um usuário real e um inexistente. */
+function findUserByIdentifier(identifier){
+  const id = String(identifier||'').trim().toLowerCase();
+  if(!id) return null;
+  const sheet = getSheet(SHEET_USERS);
+  const data = sheet.getDataRange().getValues();
+  for(let i=1;i<data.length;i++){
+    const row = data[i];
+    const username = String(row[0]||'').trim();
+    if(!username) continue;
+    const email = String(row[7]||'').trim();
+    if(username.toLowerCase()===id || (email && email.toLowerCase()===id)){
+      return { rowIndex: i+1, username: username, email: email };
+    }
+  }
+  return null;
+}
+
+function getResetTokenRow(username){
+  const sheet = getSheet(SHEET_RESET_TOKENS);
+  const data = sheet.getDataRange().getValues();
+  const key = String(username).trim().toLowerCase();
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0]).trim().toLowerCase() === key){
+      return {
+        rowIndex: i+1,
+        username: data[i][0],
+        codeHash: String(data[i][1]||''),
+        expiresAt: data[i][2],
+        used: String(data[i][3]).toLowerCase()==='true' || data[i][3]===true,
+        attempts: Number(data[i][4])||0,
+        requestedAt: data[i][5],
+      };
+    }
+  }
+  return null;
+}
+
+function saveResetToken(username, code){
+  const sheet = getSheet(SHEET_RESET_TOKENS);
+  const data = sheet.getDataRange().getValues();
+  const key = String(username).trim().toLowerCase();
+  let rowIndex = -1;
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0]).trim().toLowerCase() === key){ rowIndex = i+1; break; }
+  }
+  const codeHash = sha256Hex(key + ':' + String(code));
+  const expiresAt = new Date(Date.now() + RESET_CODE_TTL_MINUTES*60*1000).toISOString();
+  const values = [username, codeHash, expiresAt, 'false', 0, new Date().toISOString()];
+  if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
+  else sheet.appendRow(values);
+}
+
+function incrementResetAttempts(username, attempts){
+  const sheet = getSheet(SHEET_RESET_TOKENS);
+  const data = sheet.getDataRange().getValues();
+  const key = String(username).trim().toLowerCase();
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0]).trim().toLowerCase() === key){ sheet.getRange(i+1, 5).setValue(attempts); return; }
+  }
+}
+
+function markResetTokenUsed(username){
+  const sheet = getSheet(SHEET_RESET_TOKENS);
+  const data = sheet.getDataRange().getValues();
+  const key = String(username).trim().toLowerCase();
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0]).trim().toLowerCase() === key){ sheet.getRange(i+1, 4).setValue('true'); return; }
+  }
+}
+
+function sendResetEmail(email, username, code){
+  const subject = 'Plansul — código para redefinir sua senha';
+  const body =
+    'Olá,\n\n' +
+    'Recebemos um pedido para redefinir a senha do usuário "'+username+'" no Painel Financeiro Plansul.\n\n' +
+    'Seu código de verificação é: '+code+'\n\n' +
+    'Esse código expira em 10 minutos e só pode ser usado uma vez.\n\n' +
+    'Se você não solicitou essa redefinição, pode ignorar este e-mail com segurança — sua senha continua a mesma.\n\n' +
+    'Plansul · acesso restrito · dados protegidos';
+  MailApp.sendEmail({ to: email, subject: subject, body: body });
+}
+
+function doRequestPasswordReset(identifier){
+  const id = String(identifier||'').trim();
+  if(!id) throw mkError('invalid_argument', 'Informe seu usuário ou e-mail.');
+
+  // Throttle por identificador bruto — roda ANTES de olhar a planilha, para
+  // que um identificador inexistente tenha exatamente o mesmo comportamento
+  // observável (tempo de resposta e possibilidade de "throttled") de um real.
+  const throttleKey = 'reset_throttle_' + id.toLowerCase();
+  const cache = CacheService.getScriptCache();
+  if(cache.get(throttleKey)) throw mkError('throttled', 'Aguarde um minuto antes de pedir um novo código.');
+  cache.put(throttleKey, '1', RESET_THROTTLE_SECONDS);
+
+  const found = findUserByIdentifier(id);
+  if(found && found.email){
+    const code = String(Math.floor(100000 + Math.random()*900000));
+    saveResetToken(found.username, code);
+    try{ sendResetEmail(found.email, found.username, code); }
+    catch(e){ console.error('envio de e-mail de redefinição', e); }
+  }
+  return { message: 'Se o usuário existir e tiver e-mail cadastrado, um código foi enviado.' };
+}
+
+function doVerifyResetCode(identifier, code){
+  const generic = mkError('invalid_code', 'Código inválido ou expirado.');
+  const found = findUserByIdentifier(identifier);
+  if(!found) throw generic;
+  const token = getResetTokenRow(found.username);
+  if(!token || token.used) throw generic;
+  if(Date.now() > new Date(token.expiresAt).getTime()) throw generic;
+  if(token.attempts >= RESET_MAX_ATTEMPTS) throw mkError('too_many_attempts', 'Limite de tentativas excedido. Peça um novo código.');
+  const codeHash = sha256Hex(String(found.username).trim().toLowerCase() + ':' + String(code||'').trim());
+  if(codeHash !== token.codeHash){
+    incrementResetAttempts(found.username, token.attempts+1);
+    throw generic;
+  }
+  return { verified: true };
+}
+
+function doResetPassword(identifier, code, newPassword){
+  if(!newPassword || String(newPassword).length < 8) throw mkError('weak_password', 'A nova senha deve ter pelo menos 8 caracteres.');
+  const generic = mkError('invalid_code', 'Código inválido ou expirado.');
+  const found = findUserByIdentifier(identifier);
+  if(!found) throw generic;
+  // Revalida tudo de novo no servidor — nunca confia no "verified" de uma
+  // chamada anterior de verifyResetCode.
+  const token = getResetTokenRow(found.username);
+  if(!token || token.used) throw generic;
+  if(Date.now() > new Date(token.expiresAt).getTime()) throw generic;
+  if(token.attempts >= RESET_MAX_ATTEMPTS) throw mkError('too_many_attempts', 'Limite de tentativas excedido. Peça um novo código.');
+  const codeHash = sha256Hex(String(found.username).trim().toLowerCase() + ':' + String(code||'').trim());
+  if(codeHash !== token.codeHash){
+    incrementResetAttempts(found.username, token.attempts+1);
+    throw generic;
+  }
+
+  const sheet = getSheet(SHEET_USERS);
+  const salt = Utilities.getUuid();
+  const hash = makePasswordHash(salt, newPassword);
+  sheet.getRange(found.rowIndex, 2, 1, 2).setValues([[salt, hash]]); // salt, passwordHash
+  sheet.getRange(found.rowIndex, 6).setValue(0);  // tentativasFalhas
+  sheet.getRange(found.rowIndex, 7).setValue(''); // bloqueadoAte
+  markResetTokenUsed(found.username);
+  return { message: 'Senha redefinida com sucesso.' };
 }
 
 /* ==== LEITURA DOS DADOS DO PAINEL ==== */
@@ -613,6 +781,7 @@ function onOpen(){
     .addSeparator()
     .addItem('Definir senha de usuário', 'promptSetPassword')
     .addItem('Criar novo usuário', 'promptCreateUser')
+    .addItem('Definir e-mail de usuário (p/ "esqueci minha senha")', 'promptSetEmail')
     .addToUi();
 }
 
@@ -620,11 +789,12 @@ function onOpen(){
 // Rode isso uma vez, logo depois de criar a planilha (veja SETUP.md).
 function setupSpreadsheet(){
   const ss = getSS();
-  ensureSheet(ss, SHEET_USERS, ['username','salt','passwordHash','role','nome','tentativasFalhas','bloqueadoAte']);
+  ensureSheet(ss, SHEET_USERS, ['username','salt','passwordHash','role','nome','tentativasFalhas','bloqueadoAte','email']);
   ensureSheet(ss, SHEET_ACCOUNTS, ['id','name','kind','balance','asOfDate','order','updatedAt']);
   ensureSheet(ss, SHEET_SOURCES, ['id','sourceName','filename','sheetName','mappingJSON','headerSignature','rowCount','uploadedAt','periodStart','periodEnd','closingBalance']);
   ensureSheet(ss, SHEET_HISTORY, ['id','bank','filename','status','rowCount','errorMessage','at','periodStart','periodEnd','sourceId']);
   ensureSheet(ss, SHEET_APPLICATIONS, ['id','banco','fundo','contaCod','competencia','saldoInicial','aplicacoes','rendimentos','imposto','resgate','saldoFinal','rendimentosPct','cotizacaoResgate','garantia','vinculo','indexador','updatedAt','liquidezDias','classificacaoVinculo','periodicAccepted']);
+  ensureSheet(ss, SHEET_RESET_TOKENS, ['username','codeHash','expiresAt','used','attempts','requestedAt']);
   getRootFolder();
   SpreadsheetApp.getUi().alert('Planilha configurada/atualizada com sucesso.');
 }
@@ -658,11 +828,36 @@ function promptCreateUser(){
   if(n.getSelectedButton() !== ui.Button.OK) return;
   const nome = n.getResponseText().trim() || username;
 
+  const em = ui.prompt('E-mail (opcional)', 'E-mail de "'+username+'", usado para o "esqueci minha senha" (pode deixar em branco e definir depois):', ui.ButtonSet.OK_CANCEL);
+  if(em.getSelectedButton() !== ui.Button.OK) return;
+  const email = em.getResponseText().trim();
+
   const p = ui.prompt('Senha inicial', 'Digite a senha para "'+username+'":', ui.ButtonSet.OK_CANCEL);
   if(p.getSelectedButton() !== ui.Button.OK || !p.getResponseText()) return;
 
-  setUserPassword(username, role, nome, p.getResponseText());
+  setUserPassword(username, role, nome, p.getResponseText(), email);
   ui.alert('Usuário "'+username+'" criado/atualizado com sucesso.');
+}
+
+function promptSetEmail(){
+  const ui = SpreadsheetApp.getUi();
+  const u = ui.prompt('E-mail para redefinição de senha', 'Nome de usuário existente:', ui.ButtonSet.OK_CANCEL);
+  if(u.getSelectedButton() !== ui.Button.OK || !u.getResponseText().trim()) return;
+  const username = u.getResponseText().trim();
+
+  const sheet = getSheet(SHEET_USERS);
+  const data = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+  for(let i=1;i<data.length;i++){
+    if(String(data[i][0]).trim().toLowerCase() === username.toLowerCase()){ rowIndex = i+1; break; }
+  }
+  if(rowIndex < 0){ ui.alert('Usuário "'+username+'" não encontrado.'); return; }
+
+  const e = ui.prompt('E-mail', 'Digite o e-mail de "'+username+'" (usado para o "esqueci minha senha"):', ui.ButtonSet.OK_CANCEL);
+  if(e.getSelectedButton() !== ui.Button.OK || !e.getResponseText().trim()) return;
+
+  sheet.getRange(rowIndex, 8).setValue(e.getResponseText().trim());
+  ui.alert('E-mail de "'+username+'" atualizado.');
 }
 
 function promptSetPassword(){
@@ -686,16 +881,20 @@ function promptSetPassword(){
   ui.alert('Senha de "'+username+'" atualizada.');
 }
 
-function setUserPassword(username, role, nome, plainPassword){
+function setUserPassword(username, role, nome, plainPassword, email){
   const sheet = getSheet(SHEET_USERS);
   const data = sheet.getDataRange().getValues();
   let rowIndex = -1;
+  let existingEmail = '';
   for(let i=1;i<data.length;i++){
-    if(String(data[i][0]).trim().toLowerCase() === username.toLowerCase()){ rowIndex = i+1; break; }
+    if(String(data[i][0]).trim().toLowerCase() === username.toLowerCase()){ rowIndex = i+1; existingEmail = String(data[i][7]||''); break; }
   }
   const salt = Utilities.getUuid();
   const hash = makePasswordHash(salt, plainPassword);
-  const values = [username, salt, hash, role, nome, 0, ''];
+  // Preserva o e-mail já cadastrado quando nenhum novo valor é informado
+  // (ex.: ao só trocar a senha via "Definir senha de usuário").
+  const finalEmail = (email!==undefined && email!==null && email!=='') ? email : existingEmail;
+  const values = [username, salt, hash, role, nome, 0, '', finalEmail];
   if(rowIndex > 0) sheet.getRange(rowIndex, 1, 1, values.length).setValues([values]);
   else sheet.appendRow(values);
 }
