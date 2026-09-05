@@ -1,13 +1,13 @@
-/* Plansul — V8 Login suave da Tesouraria */
+/* Plansul — V9 Login final aprovado da Tesouraria */
 :root{
   --login-navy:#00283c;
-  --login-navy-2:#00394d;
-  --login-teal:#007f8c;
-  --login-teal-soft:#65d6d2;
-  --login-ink:#16313d;
-  --login-muted:#71828b;
-  --login-line:#dce6e9;
-  --login-field:#f7fafb;
+  --login-navy-deep:#001f32;
+  --login-blue:#005f7e;
+  --login-teal:#0aa8b7;
+  --login-teal-bright:#24d3d1;
+  --login-ink:#17313d;
+  --login-muted:#647986;
+  --login-line:#cfd8dd;
 }
 
 #loginOverlay{
@@ -18,161 +18,178 @@
   flex-direction:column;
   overflow:auto;
   background:
-    radial-gradient(circle at 18% 12%, rgba(83,211,210,.10), transparent 28%),
-    radial-gradient(circle at 82% 30%, rgba(0,123,142,.16), transparent 30%),
-    linear-gradient(155deg, rgb(0,40,60) 0%, rgb(0,46,64) 48%, rgb(0,58,72) 100%);
+    radial-gradient(circle at 12% 2%, rgba(72,221,218,.68) 0%, rgba(27,173,189,.35) 18%, transparent 38%),
+    radial-gradient(circle at 86% 22%, rgba(13,123,151,.22) 0%, transparent 34%),
+    linear-gradient(155deg,#0aa7b7 0%,#057890 20%,#004c67 42%,rgb(0,40,60) 70%,#001f32 100%);
   color:#fff;
   font-family:"IBM Plex Sans",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
 #loginOverlay[hidden]{display:none!important}
+#loginOverlay::before{
+  content:"";
+  position:absolute;
+  inset:-10% -30% auto -30%;
+  height:58vh;
+  border:1px solid rgba(65,201,208,.12);
+  border-radius:50%;
+  transform:rotate(10deg);
+  pointer-events:none;
+}
+#loginOverlay::after{
+  content:"";
+  position:absolute;
+  left:-42%;
+  bottom:23vh;
+  width:125vw;
+  height:55vw;
+  border:1px solid rgba(73,202,209,.12);
+  border-radius:50%;
+  transform:rotate(18deg);
+  pointer-events:none;
+}
 
 .login-v8-visual{
-  flex:0 0 clamp(245px,42vh,390px);
+  flex:0 0 56vh;
+  min-height:390px;
   display:flex;
   align-items:center;
   justify-content:center;
   position:relative;
-  padding:34px 24px 58px;
+  z-index:1;
+  padding:44px 24px 82px;
   text-align:center;
 }
 .login-v8-brand{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:18px;
-  transform:translateY(-4px);
+  gap:28px;
+  transform:translateY(-8px);
 }
 .login-v8-logo{
   display:block;
-  width:min(250px,62vw);
+  width:min(310px,64vw);
   height:auto;
   object-fit:contain;
   background:transparent!important;
   border:0!important;
   border-radius:0!important;
   box-shadow:none!important;
-  filter:
-    drop-shadow(0 0 4px rgba(127,236,231,.20))
-    drop-shadow(0 0 13px rgba(89,221,218,.11));
+  filter:none!important;
 }
 .login-v8-kicker{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  min-height:28px;
-  padding:0 13px;
-  border:1px solid rgba(156,230,229,.26);
+  min-width:248px;
+  min-height:54px;
+  padding:0 30px;
+  box-sizing:border-box;
+  border:1px solid rgba(22,178,192,.55);
   border-radius:999px;
-  background:rgba(255,255,255,.035);
-  color:rgba(225,249,248,.86);
-  font-size:11px;
+  background:rgba(0,43,61,.32);
+  color:rgba(248,253,254,.96);
+  font-size:12px;
   font-weight:700;
-  letter-spacing:.22em;
+  letter-spacing:.30em;
   text-transform:uppercase;
-  backdrop-filter:blur(4px);
+  box-shadow:inset 0 0 0 1px rgba(92,224,226,.025);
+  backdrop-filter:blur(2px);
 }
 .login-v8-kicker::before{
   content:"";
-  width:5px;
-  height:5px;
+  width:8px;
+  height:8px;
+  flex:0 0 8px;
   border-radius:50%;
-  background:#78dcd7;
-  margin-right:9px;
-  box-shadow:0 0 8px rgba(120,220,215,.42);
+  background:var(--login-teal-bright);
+  margin-right:23px;
+  box-shadow:none;
 }
 
 .login-v8-sheet{
   flex:1 0 auto;
   position:relative;
-  z-index:2;
+  z-index:3;
   width:100%;
-  min-height:360px;
-  margin-top:-30px;
-  border-radius:30px 30px 0 0;
+  min-height:390px;
+  margin-top:-34px;
+  border-radius:36px 36px 0 0;
   background:#fff;
   color:var(--login-ink);
-  box-shadow:0 -12px 36px rgba(0,18,29,.12);
+  box-shadow:0 -14px 36px rgba(0,18,29,.10);
   display:flex;
   justify-content:center;
-  padding:42px 24px max(30px,env(safe-area-inset-bottom));
+  padding:76px 34px max(34px,env(safe-area-inset-bottom));
+  box-sizing:border-box;
 }
 .login-v8-form{
-  width:min(100%,410px);
+  width:min(100%,430px);
   display:flex;
   flex-direction:column;
-  gap:17px;
 }
 .login-v8-field{
-  display:flex;
-  flex-direction:column;
-  gap:7px;
+  position:relative;
+  display:grid;
+  grid-template-columns:44px minmax(0,1fr);
+  align-items:center;
+  min-height:66px;
+  border-bottom:1.5px solid var(--login-line);
+  transition:border-color .16s ease;
 }
+.login-v8-field + .login-v8-field{margin-top:16px}
+.login-v8-field:focus-within{border-bottom-color:#00738d}
 .login-v8-field label{
-  color:#405760;
-  font-size:12px;
-  font-weight:650;
-  letter-spacing:.015em;
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  padding:0!important;
+  margin:-1px!important;
+  overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;
+  border:0!important;
+}
+.login-v8-field-icon{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  color:#00445c;
+}
+.login-v8-field-icon svg{
+  width:28px;
+  height:28px;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.75;
+  stroke-linecap:round;
+  stroke-linejoin:round;
 }
 .login-v8-field input{
   width:100%;
-  height:53px;
+  height:64px;
   box-sizing:border-box;
-  padding:0 15px;
-  border:1px solid var(--login-line);
-  border-radius:13px;
-  outline:none;
-  background:var(--login-field);
-  color:#17323d;
-  font:500 15px/1 "IBM Plex Sans",system-ui,sans-serif;
-  box-shadow:0 1px 0 rgba(0,40,60,.02);
-  transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;
-}
-.login-v8-field input::placeholder{color:#9aa8ae;font-weight:400}
-.login-v8-field input:focus{
-  border-color:#55aeb4;
-  background:#fff;
-  box-shadow:0 0 0 3px rgba(23,137,147,.09);
-}
-.login-v8-actions{
-  display:flex;
-  justify-content:center;
-  padding-top:5px;
-}
-#loginSubmit.login-v8-submit{
-  min-width:190px;
-  height:48px;
+  padding:0 4px 0 12px;
   border:0;
-  border-radius:14px;
-  padding:0 26px;
-  background:linear-gradient(135deg,#006f7c 0%,#005568 100%);
-  color:#fff;
-  font:700 14px/1 "IBM Plex Sans",system-ui,sans-serif;
-  letter-spacing:.01em;
-  cursor:pointer;
-  box-shadow:0 8px 18px rgba(0,72,86,.16);
-  transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease;
+  outline:none;
+  background:transparent;
+  color:#344f5d;
+  font:500 19px/1 "IBM Plex Sans",system-ui,sans-serif;
+  caret-color:#007e91;
+  box-shadow:none;
 }
-#loginSubmit.login-v8-submit:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(0,72,86,.20)}
-#loginSubmit.login-v8-submit:active{transform:translateY(0)}
-#loginSubmit.login-v8-submit:disabled{cursor:default;opacity:.72;transform:none}
-.login-v8-spinner{
-  width:14px;
-  height:14px;
-  border:2px solid rgba(255,255,255,.38);
-  border-top-color:#fff;
-  border-radius:50%;
-  display:inline-block;
-  margin-right:8px;
-  vertical-align:-2px;
-  animation:loginV8Spin .7s linear infinite;
+.login-v8-field input::placeholder{
+  color:#6e8290;
+  opacity:1;
+  font-weight:400;
 }
-@keyframes loginV8Spin{to{transform:rotate(360deg)}}
 
 #loginError.login-v8-message{
-  margin:0;
-  min-height:18px;
-  padding:9px 11px;
-  border-radius:10px;
+  margin:16px 0 0;
+  padding:10px 12px;
+  border-radius:11px;
   background:#fff4f3;
   color:#a3423f;
   border:1px solid #f0d6d4;
@@ -186,13 +203,54 @@
   border-color:#d8e8e9;
 }
 #loginError.login-v8-message[hidden]{display:none!important}
-.login-v8-note{
-  margin:5px 0 0;
-  text-align:center;
-  color:#9aa7ad;
-  font-size:10.5px;
-  letter-spacing:.02em;
+
+.login-v8-actions{
+  display:flex;
+  justify-content:center;
+  padding-top:44px;
 }
+#loginSubmit.login-v8-submit{
+  width:100%;
+  min-height:58px;
+  border:0;
+  border-radius:999px;
+  padding:0 28px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  background:linear-gradient(100deg,#005177 0%,#006d89 48%,#0692a0 100%);
+  color:#fff;
+  font:700 14px/1 "IBM Plex Sans",system-ui,sans-serif;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  cursor:pointer;
+  box-shadow:0 12px 24px rgba(0,76,100,.14);
+  transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease;
+}
+#loginSubmit.login-v8-submit svg{
+  width:24px;
+  height:24px;
+  stroke:currentColor;
+  stroke-width:1.8;
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#loginSubmit.login-v8-submit:hover{transform:translateY(-1px);box-shadow:0 14px 28px rgba(0,76,100,.18)}
+#loginSubmit.login-v8-submit:active{transform:translateY(0)}
+#loginSubmit.login-v8-submit:disabled{cursor:default;opacity:.72;transform:none}
+.login-v8-spinner{
+  width:14px;
+  height:14px;
+  border:2px solid rgba(255,255,255,.38);
+  border-top-color:#fff;
+  border-radius:50%;
+  display:inline-block;
+  animation:loginV8Spin .7s linear infinite;
+}
+@keyframes loginV8Spin{to{transform:rotate(360deg)}}
+.login-v8-note{display:none!important}
 
 @media(min-width:900px){
   #loginOverlay{
@@ -201,35 +259,63 @@
     justify-content:center;
     overflow:hidden;
   }
+  #loginOverlay::after{bottom:-22vh;left:-32%;width:90vw;height:42vw}
   .login-v8-visual{
-    flex:1 1 52%;
+    flex:1 1 56%;
     min-height:100vh;
-    padding:48px;
+    padding:56px;
   }
-  .login-v8-brand{transform:none}
-  .login-v8-logo{width:min(310px,30vw)}
+  .login-v8-brand{transform:none;gap:30px}
+  .login-v8-logo{width:min(390px,34vw)}
+  .login-v8-kicker{min-width:280px;min-height:58px;font-size:12px}
   .login-v8-sheet{
-    flex:0 0 min(48%,620px);
+    flex:0 0 min(44%,610px);
     min-height:100vh;
     margin:0;
-    border-radius:34px 0 0 34px;
+    border-radius:38px 0 0 38px;
     align-items:center;
-    padding:70px clamp(42px,5vw,78px);
-    box-shadow:-18px 0 46px rgba(0,18,29,.13);
+    padding:74px clamp(48px,5vw,82px);
+    box-shadow:-18px 0 46px rgba(0,18,29,.12);
   }
-  .login-v8-form{width:min(100%,390px)}
+  .login-v8-form{width:min(100%,420px)}
 }
 
 @media(max-width:520px){
-  .login-v8-visual{flex-basis:38vh;min-height:235px;padding:26px 20px 48px}
-  .login-v8-logo{width:min(220px,66vw)}
-  .login-v8-sheet{margin-top:-26px;border-radius:27px 27px 0 0;padding:35px 20px 26px}
-  .login-v8-form{gap:15px}
-  .login-v8-field input{height:51px}
-  #loginSubmit.login-v8-submit{min-width:178px}
+  .login-v8-visual{
+    flex-basis:57vh;
+    min-height:360px;
+    padding:36px 20px 72px;
+  }
+  .login-v8-brand{gap:25px;transform:translateY(-2px)}
+  .login-v8-logo{width:min(290px,68vw)}
+  .login-v8-kicker{
+    min-width:min(250px,72vw);
+    min-height:52px;
+    padding:0 24px;
+    font-size:10.5px;
+    letter-spacing:.30em;
+  }
+  .login-v8-kicker::before{margin-right:20px;width:7px;height:7px;flex-basis:7px}
+  .login-v8-sheet{
+    margin-top:-32px;
+    border-radius:34px 34px 0 0;
+    padding:68px 34px 30px;
+  }
+  .login-v8-field{grid-template-columns:42px minmax(0,1fr);min-height:64px}
+  .login-v8-field + .login-v8-field{margin-top:14px}
+  .login-v8-field-icon,.login-v8-field-icon svg{width:26px;height:26px}
+  .login-v8-field input{height:62px;font-size:18px}
+  .login-v8-actions{padding-top:42px}
+  #loginSubmit.login-v8-submit{min-height:58px;font-size:13px}
+}
+
+@media(max-width:390px){
+  .login-v8-sheet{padding-left:26px;padding-right:26px}
+  .login-v8-logo{width:min(255px,72vw)}
+  .login-v8-kicker{min-width:min(230px,74vw)}
 }
 
 @media(prefers-reduced-motion:reduce){
-  #loginSubmit.login-v8-submit,.login-v8-field input{transition:none}
+  #loginSubmit.login-v8-submit,.login-v8-field{transition:none}
   .login-v8-spinner{animation-duration:1.2s}
 }
