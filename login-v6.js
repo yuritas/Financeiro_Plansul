@@ -11,16 +11,13 @@
   function ensureCss(){
     if(document.querySelector('link[data-login-v8]')) return;
     const link=document.createElement('link');
-    link.rel='stylesheet';
-    link.href='login-v8.css?v=8';
-    link.dataset.loginV8='1';
+    link.rel='stylesheet'; link.href='login-v8.css?v=8'; link.dataset.loginV8='1';
     document.head.appendChild(link);
   }
   function transformMarkup(){
     const overlay=el('loginOverlay');
     if(!overlay||overlay.dataset.v8Markup==='1') return;
-    overlay.dataset.v8Markup='1';
-    overlay.className='';
+    overlay.dataset.v8Markup='1'; overlay.className='';
     overlay.setAttribute('aria-label','Acesso à Tesouraria');
     overlay.innerHTML=`
       <section class="login-v8-visual" aria-hidden="true">
@@ -31,37 +28,26 @@
       </section>
       <section class="login-v8-sheet">
         <form class="login-v8-form" id="loginForm" novalidate>
-          <div class="login-v8-field">
-            <label for="loginUser">Usuário</label>
-            <input type="text" id="loginUser" autocomplete="username" inputmode="text" required>
-          </div>
-          <div class="login-v8-field">
-            <label for="loginPass">Senha</label>
-            <input type="password" id="loginPass" autocomplete="current-password" required>
-          </div>
+          <div class="login-v8-field"><label for="loginUser">Usuário</label><input type="text" id="loginUser" autocomplete="username" inputmode="text" required></div>
+          <div class="login-v8-field"><label for="loginPass">Senha</label><input type="password" id="loginPass" autocomplete="current-password" required></div>
           <p class="login-v8-message" id="loginError" hidden role="status" aria-live="polite"></p>
-          <div class="login-v8-actions">
-            <button type="submit" class="login-v8-submit" id="loginSubmit">Entrar</button>
-          </div>
+          <div class="login-v8-actions"><button type="submit" class="login-v8-submit" id="loginSubmit">Entrar</button></div>
           <p class="login-v8-note">Ambiente interno Plansul</p>
         </form>
       </section>`;
   }
   function setMessage(text,isError){
-    const box=el('loginError');
-    if(!box) return;
-    box.textContent=text||'';
-    box.hidden=!text;
+    const box=el('loginError'); if(!box) return;
+    box.textContent=text||''; box.hidden=!text;
     box.classList.toggle('login-v8-info',!!text&&!isError);
   }
   function setButtonLoading(loading,label){
-    const btn=el('loginSubmit');
-    if(!btn) return;
+    const btn=el('loginSubmit'); if(!btn) return;
     btn.disabled=!!loading;
     btn.innerHTML=loading?`<span class="login-v8-spinner" aria-hidden="true"></span>${label||'Entrando…'}`:'Entrar';
   }
   function keepVisible(){
-    const overlay=el('loginOverlay'), app=el('app');
+    const overlay=el('loginOverlay'),app=el('app');
     if(overlay) overlay.hidden=false;
     if(app) app.hidden=true;
   }
@@ -80,8 +66,7 @@
       response=await fetch(window.PlansulLoginEndpoint||ENDPOINT,{
         method:'POST',redirect:'follow',cache:'no-store',credentials:'omit',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({action:'login',token:null,username,password}),
-        signal:controller.signal
+        body:JSON.stringify({action:'login',token:null,username,password}),signal:controller.signal
       });
     }catch(err){
       const code=err&&err.name==='AbortError'?'timeout':'network';
@@ -89,27 +74,32 @@
     }finally{ clearTimeout(timer); }
     if(!response.ok) throw Object.assign(new Error('network'),{code:'network'});
     let json;
-    try{ json=await response.json(); }
-    catch(e){ throw Object.assign(new Error('network'),{code:'network'}); }
-    if(!json||!json.ok){
-      const code=(json&&json.error)||'api-error';
-      throw Object.assign(new Error(code),{code});
-    }
+    try{ json=await response.json(); }catch(e){ throw Object.assign(new Error('network'),{code:'network'}); }
+    if(!json||!json.ok){ const code=(json&&json.error)||'api-error'; throw Object.assign(new Error(code),{code}); }
     const sess={token:json.token,username:json.username,role:json.role,nome:json.nome};
     try{ sessionStorage.setItem(SESSION_KEY,JSON.stringify(sess)); }catch(e){}
     return sess;
   }
+  function forceBootstrapV8(){
+    return new Promise((resolve,reject)=>{
+      if(typeof window.PlansulLoadDashboard==='function') return resolve();
+      const existing=document.querySelector('script[data-v8-bootstrap]');
+      if(existing){ existing.addEventListener('load',resolve,{once:true}); existing.addEventListener('error',reject,{once:true}); return; }
+      const script=document.createElement('script');
+      script.src='app.js?v=8'; script.async=false; script.dataset.v8Bootstrap='1';
+      script.onload=resolve; script.onerror=()=>reject(new Error('bootstrap'));
+      document.head.appendChild(script);
+    });
+  }
   async function waitForLoader(){
+    if(typeof window.PlansulLoadDashboard!=='function') await forceBootstrapV8();
     const started=Date.now();
-    while(typeof window.PlansulLoadDashboard!=='function'&&Date.now()-started<2500){
-      await new Promise(r=>setTimeout(r,25));
-    }
+    while(typeof window.PlansulLoadDashboard!=='function'&&Date.now()-started<1800) await new Promise(r=>setTimeout(r,25));
     if(typeof window.PlansulLoadDashboard!=='function') throw Object.assign(new Error('network'),{code:'network'});
   }
   async function openDashboard(){
     await waitForLoader();
-    setButtonLoading(true,'Preparando painel…');
-    setMessage('Acesso confirmado. Preparando o painel…',false);
+    setButtonLoading(true,'Preparando painel…'); setMessage('Acesso confirmado. Preparando o painel…',false);
     await window.PlansulLoadDashboard();
     if(typeof window.PlansulBoot!=='function') throw Object.assign(new Error('network'),{code:'network'});
     const ok=await window.PlansulBoot();
@@ -122,18 +112,13 @@
     const username=(user&&user.value||'').trim(),password=pass&&pass.value||'';
     if(!username||!password){ setMessage('Informe usuário e senha.',true); (username?pass:user)?.focus(); return; }
     submitting=true; setButtonLoading(true,'Entrando…'); setMessage('',false);
-    try{
-      await authenticate(username,password);
-      await openDashboard();
-    }catch(err){
-      keepVisible();
-      if(pass){ pass.value=''; pass.focus(); }
+    try{ await authenticate(username,password); await openDashboard(); }
+    catch(err){
+      keepVisible(); if(pass){pass.value='';pass.focus();}
       if(err&&err.code==='dashboard-load-failed') setMessage('Acesso confirmado, mas o painel não terminou de carregar. Tente novamente.',true);
       else setMessage(friendly(err&&err.code),true);
     }finally{
-      submitting=false;
-      const app=el('app');
-      if(!app||app.hidden) setButtonLoading(false);
+      submitting=false; const app=el('app'); if(!app||app.hidden) setButtonLoading(false);
     }
   }
   function init(){
@@ -145,5 +130,5 @@
     requestAnimationFrame(()=>{ try{user?.focus({preventScroll:true});}catch(e){} });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
-  window.addEventListener('pageshow',()=>{ const app=el('app'); if(!app||app.hidden) keepVisible(); });
+  window.addEventListener('pageshow',()=>{const app=el('app');if(!app||app.hidden)keepVisible();});
 })();
